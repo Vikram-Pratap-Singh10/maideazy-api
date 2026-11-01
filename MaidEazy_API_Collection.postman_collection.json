@@ -1,0 +1,1161 @@
+{
+  "info": {
+    "_postman_id": "maideazy-backend-api-collection",
+    "name": "MaidEazy Backend APIs",
+    "description": "Complete Postman collection for MaidEazy Backend API including Auth, Role Management, Team/Sales Person Management, Service Providers, Registration Fee & Features, and Razorpay Payments.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5050",
+      "type": "string"
+    },
+    {
+      "key": "authToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "roleId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "teamMemberId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "referenceCode",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "providerId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "feeId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "razorpayOrderId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Health & Server",
+      "item": [
+        {
+          "name": "Server Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/",
+              "host": ["{{baseUrl}}"],
+              "path": [""]
+            }
+          }
+        },
+        {
+          "name": "API Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "health"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Authentication",
+      "item": [
+        {
+          "name": "Admin Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.success && res.data && res.data.token) {",
+                  "    pm.collectionVariables.set('authToken', res.data.token);",
+                  "    console.log('authToken saved to collection variables');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@maideazy.com\",\n  \"password\": \"admin@123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Register Admin (Initial Setup)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.success && res.data && res.data.token) {",
+                  "    pm.collectionVariables.set('authToken', res.data.token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Super Administrator\",\n  \"email\": \"admin2@maideazy.com\",\n  \"password\": \"admin@123\",\n  \"mobileNumber\": \"9876543210\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register-admin",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "register-admin"]
+            }
+          }
+        },
+        {
+          "name": "Get Current Profile (Me)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{authToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "me"]
+            }
+          }
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{authToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"admin@123\",\n  \"newPassword\": \"admin@12345\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/change-password",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "change-password"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Role Management",
+      "item": [
+        {
+          "name": "Get Tabs and Actions List for UI",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{authToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/roles/tabs-list",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "roles", "tabs-list"]
+            }
+          }
+        },
+        {
+          "name": "Create Role",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.success && res.data && res.data.role && res.data.role._id) {",
+                  "    pm.collectionVariables.set('roleId', res.data.role._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{authToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Sales Executive\",\n  \"description\": \"Sales team role to onboard service providers\",\n  \"permissions\": [\n    {\n      \"tab\": \"dashboard\",\n      \"actions\": [\"read\"]\n    },\n    {\n      \"tab\": \"service_providers\",\n      \"actions\": [\"create\", \"read\", \"update\"]\n    }\n  ],\n  \"isActive\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/roles",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "roles"]
+            }
+          }
+        },
+        {
+          "name": "Get All Roles",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{authToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/roles",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "roles"]
+            }
+          }
+        },
+        {
+          "name": "Get Role By ID",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{authToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/roles/{{roleId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "roles", "{{roleId}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Role",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{authToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Senior Sales Executive\",\n  \"description\": \"Updated description\",\n  \"permissions\": [\n    {\n      \"tab\": \"dashboard\",\n      \"actions\": [\"read\"]\n    },\n    {\n      \"tab\": \"service_providers\",\n      \"actions\": [\"create\", \"read\", \"update\", \"delete\"]\n    }\n  ],\n  \"isActive\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/roles/{{roleId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "roles", "{{roleId}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Role",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{authToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/roles/{{roleId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "roles", "{{roleId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Team & Sales Persons (Users)",
+      "item": [
+        {
+          "name": "Verify Sales Person Reference Code (Public)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/verify-reference/{{referenceCode}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", "verify-reference", "{{referenceCode}}"]
+            }
+          }
+        },
+        {
+          "name": "Register App User (Customer with Location)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Rahul Sharma\",\n  \"email\": \"rahul.sharma@example.com\",\n  \"mobileNumber\": \"9876543210\",\n  \"password\": \"user@123\",\n  \"location\": {\n    \"type\": \"Point\",\n    \"coordinates\": [75.8577, 22.7196],\n    \"address\": \"Flat 204, Royal Palms, Vijay Nagar\",\n    \"city\": \"Indore\",\n    \"state\": \"Madhya Pradesh\",\n    \"pinCode\": \"452010\",\n    \"landmark\": \"Near C21 Mall\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/users/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", "register"]
+            }
+          }
+        },
+        {
+          "name": "Admin Create Team Member (Auto-generates ReferenceCode)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.success && res.data && res.data.teamMember) {",
+                  "    pm.collectionVariables.set('teamMemberId', res.data.teamMember._id);",
+                  "    if (res.data.teamMember.referenceCode) {",
+                  "        pm.collectionVariables.set('referenceCode', res.data.teamMember.referenceCode);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{authToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Vikas Sales Expert\",\n  \"email\": \"vikas.sales@maideazy.com\",\n  \"password\": \"sales@123\",\n  \"mobileNumber\": \"9898989898\",\n  \"roleId\": \"{{roleId}}\",\n  \"userType\": \"SALES_PERSON\",\n  \"referencePrefix\": \"SP\",\n  \"location\": {\n    \"city\": \"Indore\",\n    \"address\": \"Main Sales Branch\",\n    \"pinCode\": \"452001\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/users/team",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", "team"]
+            }
+          }
+        },
+        {
+          "name": "Get All Team Members (with Provider Onboarded Count)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{authToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/team?page=1&limit=10&search=&userType=SALES_PERSON",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", "team"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "search",
+                  "value": ""
+                },
+                {
+                  "key": "userType",
+                  "value": "SALES_PERSON"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Team Member By ID (with Onboarded Providers List)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{authToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/team/{{teamMemberId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", "team", "{{teamMemberId}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Team Member",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{authToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Vikas Sales Manager\",\n  \"mobileNumber\": \"9898989899\",\n  \"isActive\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/users/team/{{teamMemberId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", "team", "{{teamMemberId}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete or Deactivate Team Member",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{authToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/team/{{teamMemberId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", "team", "{{teamMemberId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Service Providers",
+      "item": [
+        {
+          "name": "Register Service Provider (with Reference Code)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.success && res.data && res.data.provider) {",
+                  "    pm.collectionVariables.set('providerId', res.data.provider._id);",
+                  "}",
+                  "if (res.data && res.data.paymentOrder && res.data.paymentOrder.id) {",
+                  "    pm.collectionVariables.set('razorpayOrderId', res.data.paymentOrder.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"referenceCode\": \"{{referenceCode}}\",\n  \"fullName\": \"Kavita Bai\",\n  \"mobileNumber\": \"9111222333\",\n  \"dateOfBirth\": \"1992-08-14\",\n  \"gender\": \"Female\",\n  \"residentialAddress\": \"House 45, Nanda Nagar, Sector B\",\n  \"city\": \"Indore\",\n  \"pinCode\": \"452011\",\n  \"jobRoles\": [\"Maid / Housekeeping\", \"Cooking Assistant\"],\n  \"preferredLocations\": [\n    {\n      \"city\": \"Indore\",\n      \"pinCode\": \"452010\"\n    },\n    {\n      \"city\": \"Indore\",\n      \"pinCode\": \"452011\"\n    }\n  ],\n  \"workTypes\": [\"Full-time\", \"Live-out\"],\n  \"expectedSalary\": 14000,\n  \"education\": \"10th Pass\",\n  \"experience\": \"4 years in housekeeping and home cooking\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/service-providers/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "service-providers", "register"]
+            }
+          }
+        },
+        {
+          "name": "Get Service Providers Statistics Summary",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{authToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/service-providers/stats/summary",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "service-providers", "stats", "summary"]
+            }
+          }
+        },
+        {
+          "name": "List All Service Providers (Filtered / Paginated)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{authToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/service-providers?page=1&limit=10&status=&paymentStatus=&search=",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "service-providers"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "status",
+                  "value": ""
+                },
+                {
+                  "key": "paymentStatus",
+                  "value": ""
+                },
+                {
+                  "key": "search",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Service Provider By ID",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{authToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/service-providers/{{providerId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "service-providers", "{{providerId}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Service Provider Details",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{authToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"expectedSalary\": 15000,\n  \"experience\": \"5 years in housekeeping and cooking\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/service-providers/{{providerId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "service-providers", "{{providerId}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Provider Approval Status (PENDING / APPROVED / REJECTED)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{authToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"APPROVED\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/service-providers/{{providerId}}/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "service-providers", "{{providerId}}", "status"]
+            }
+          }
+        },
+        {
+          "name": "Update Provider Payment Status",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{authToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"paymentStatus\": \"SUCCESS\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/service-providers/{{providerId}}/payment-status",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "service-providers", "{{providerId}}", "payment-status"]
+            }
+          }
+        },
+        {
+          "name": "Delete Service Provider",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{authToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/service-providers/{{providerId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "service-providers", "{{providerId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Registration Fee & Features",
+      "item": [
+        {
+          "name": "Get Active Registration Fee & Features (Public for App/Web)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/registration-fee/active",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "registration-fee", "active"]
+            }
+          }
+        },
+        {
+          "name": "Admin: Create or Update Active Fee & Features (Upsert)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{authToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"MaidEazy Partner Onboarding Fee\",\n  \"amount\": 499,\n  \"originalAmount\": 999,\n  \"currency\": \"INR\",\n  \"features\": [\n    \"Verified Maid/Helper Badge on Profile\",\n    \"Direct Job Inquiries from Verified Customers\",\n    \"Zero Commission on First 30 Days\",\n    \"Free ID & Background Verification Support\",\n    \"Dedicated Support Hotline Access\"\n  ],\n  \"description\": \"One-time registration plan for maids and home helpers\",\n  \"validityInDays\": 365,\n  \"isActive\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/registration-fee/active",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "registration-fee", "active"]
+            }
+          }
+        },
+        {
+          "name": "Admin: Create New Fee Plan",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.success && res.data && res.data.fee && res.data.fee._id) {",
+                  "    pm.collectionVariables.set('feeId', res.data.fee._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{authToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Premium Domestic Assistant Plan\",\n  \"amount\": 799,\n  \"originalAmount\": 1499,\n  \"currency\": \"INR\",\n  \"features\": [\n    \"Top Placement on Customer Search\",\n    \"Instant SMS & Push Notifications for Booking Inquiries\",\n    \"Free Background Check Certificate\",\n    \"Premium 24x7 Relationship Manager\"\n  ],\n  \"validityInDays\": 365,\n  \"isActive\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/registration-fee",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "registration-fee"]
+            }
+          }
+        },
+        {
+          "name": "Admin: Get All Fee Configurations",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{authToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/registration-fee",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "registration-fee"]
+            }
+          }
+        },
+        {
+          "name": "Admin: Get Fee Plan By ID",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{authToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/registration-fee/{{feeId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "registration-fee", "{{feeId}}"]
+            }
+          }
+        },
+        {
+          "name": "Admin: Update Fee Plan",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{authToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 399,\n  \"originalAmount\": 899,\n  \"features\": [\n    \"Verified Badge on Profile\",\n    \"Direct Inquiries Access\",\n    \"Free Skill Training Session\"\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/registration-fee/{{feeId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "registration-fee", "{{feeId}}"]
+            }
+          }
+        },
+        {
+          "name": "Admin: Delete Fee Plan",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{authToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/registration-fee/{{feeId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "registration-fee", "{{feeId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Razorpay Payments",
+      "item": [
+        {
+          "name": "Create Registration Order",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.success && res.data && res.data.order && res.data.order.id) {",
+                  "    pm.collectionVariables.set('razorpayOrderId', res.data.order.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"providerId\": \"{{providerId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/payments/create-order",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "payments", "create-order"]
+            }
+          }
+        },
+        {
+          "name": "Verify Payment Signature",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"providerId\": \"{{providerId}}\",\n  \"razorpay_order_id\": \"{{razorpayOrderId}}\",\n  \"razorpay_payment_id\": \"pay_test12345678\",\n  \"razorpay_signature\": \"your_computed_hmac_sha256_signature\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/payments/verify",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "payments", "verify"]
+            }
+          }
+        },
+        {
+          "name": "Razorpay Webhook Callback",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-razorpay-signature",
+                "value": "sample_signature_from_razorpay"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"entity\": \"event\",\n  \"account_id\": \"acc_test\",\n  \"event\": \"payment.captured\",\n  \"contains\": [\"payment\"],\n  \"payload\": {\n    \"payment\": {\n      \"entity\": {\n        \"id\": \"pay_test12345678\",\n        \"entity\": \"payment\",\n        \"amount\": 49900,\n        \"currency\": \"INR\",\n        \"status\": \"captured\",\n        \"order_id\": \"{{razorpayOrderId}}\",\n        \"method\": \"upi\"\n      }\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/payments/webhook",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "payments", "webhook"]
+            }
+          }
+        },
+        {
+          "name": "Get Provider Payment History",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{authToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/payments/provider/{{providerId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "payments", "provider", "{{providerId}}"]
+            }
+          }
+        },
+        {
+          "name": "List All Registration Payments (Admin)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{authToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/payments?page=1&limit=10&status=SUCCESS",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "payments"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "status",
+                  "value": "SUCCESS"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
+

@@ -1,0 +1,669 @@
+import { Request, Response, NextFunction } from 'express';
+import { Types } from 'mongoose';
+import Razorpay from 'razorpay';
+import ServiceProvider, {
+    ProviderApprovalStatus,
+    PaymentStatus,
+} from '../models/service.provider.js';
+import User from '../models/user.js';
+import RegistrationPayment, { PaymentGateway } from '../models/payment.js';
+import RegistrationFee from '../models/registrationFee.js';
+import { AuthRequest } from '../middleware/auth.js';
+
+/**
+ * Register a new Service Provider
+ * Can use a sales person's referenceCode during registration
+ */
+export const registerProvider = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+        const {
+            referenceCode,
+            fullName,
+            mobileNumber,
+            dateOfBirth,
+            gender,
+            residentialAddress,
+            city,
+            pinCode,
+            jobRoles,
+            preferredLocations,
+            workTypes,
+            expectedSalary,
+            education,
+            experience,
+        } = req.body;
+
+        // Check if mobile number is already registered
+        const existing = await ServiceProvider.findOne({ mobileNumber });
+        if (existing) {
+            if (existing.paymentStatus === PaymentStatus.SUCCESS) {
+                res.status(400).json({
+                    success: false,
+                    message: 'A service provider with this mobile number is already registered and verified',
+                });
+                return;
+            }
+
+            // Existing candidate with pending payment: update profile details and create payment order
+            let salesPersonId: Types.ObjectId | undefined = existing.salesPerson;
+            let validReferenceCode: string | undefined = existing.referenceCode;
+
+            if (referenceCode && referenceCode.trim()) {
+                const formattedCode = referenceCode.trim().toUpperCase();
+                const salesPerson = await User.findOne({
+                    referenceCode: formattedCode,
+                    isActive: true,
+                });
+                if (salesPerson) {
+                    salesPersonId = salesPerson._id;
+                    validReferenceCode = formattedCode;
+                }
+            }
+
+            existing.fullName = fullName || existing.fullName;
+            if (dateOfBirth) existing.dateOfBirth = dateOfBirth;
+            if (gender) existing.gender = gender;
+            if (residentialAddress) existing.residentialAddress = residentialAddress;
+            if (city) existing.city = city;
+            if (pinCode) existing.pinCode = pinCode;
+            if (jobRoles && jobRoles.length > 0) existing.jobRoles = jobRoles;
+            if (preferredLocations && preferredLocations.length > 0) existing.preferredLocations = preferredLocations;
+            if (workTypes && workTypes.length > 0) existing.workTypes = workTypes;
+            if (expectedSalary !== undefined) existing.expectedSalary = expectedSalary;
+            if (education !== undefined) existing.education = education;
+            if (experience !== undefined) existing.experience = experience;
+            if (validReferenceCode) existing.referenceCode = validReferenceCode;
+            if (salesPersonId) existing.salesPerson = salesPersonId;
+            await existing.save();
+
+            const activeFee = await RegistrationFee.findOne({ isActive: true }).sort({ updatedAt: -1 });
+            const feeAmount = Number(activeFee?.amount || process.env.PROVIDER_REGISTRATION_FEE || 499);
+            let paymentOrder: any = null;
+
+            if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_SECRET) {
+                try {
+                    const razorpay = new Razorpay({
+                        key_id: process.env.RAZORPAY_KEY_ID,
+                        key_secret: process.env.RAZORPAY_SECRET,
+                    });
+
+                    paymentOrder = await razorpay.orders.create({
+                        amount: Math.round(feeAmount * 100),
+                        currency: 'INR',
+                        receipt: `rec_reg_${existing._id}_${Date.now()}`.slice(0, 40),
+                        notes: {
+                            providerId: existing._id.toString(),
+                            providerName: existing.fullName,
+                            mobileNumber: existing.mobileNumber,
+                            type: 'PROVIDER_REGISTRATION',
+                        },
+                    });
+
+                    await RegistrationPayment.create({
+                        providerId: existing._id,
+                        amount: feeAmount,
+                        currency: 'INR',
+                        status: PaymentStatus.PENDING,
+                        gateway: PaymentGateway.RAZORPAY,
+                        orderId: paymentOrder.id,
+                    });
+                } catch (err) {
+                    console.error('Failed to create Razorpay order for existing provider:', err);
+                }
+            }
+
+            res.status(200).json({
+                success: true,
+                message: 'Service provider registration retrieved. Please complete the registration payment.',
+                data: {
+                    provider: existing,
+                    paymentOrder,
+                    razorpayKeyId: process.env.RAZORPAY_KEY_ID,
+                    registrationFee: feeAmount,
+                    isExistingPending: true,
+                },
+            });
+            return;
+        }
+
+        let salesPersonId: Types.ObjectId | undefined;
+        let validReferenceCode: string | undefined;
+
+        // If referenceCode is provided, verify it belongs to an active sales person/team member
+        if (referenceCode && referenceCode.trim()) {
+            const formattedCode = referenceCode.trim().toUpperCase();
+            const salesPerson = await User.findOne({
+                referenceCode: formattedCode,
+                isActive: true,
+            });
+
+            if (!salesPerson) {
+                res.status(400).json({
+                    success: false,
+                    message: `Invalid reference code '${referenceCode}'. Please check and try again.`,
+                });
+                return;
+            }
+
+            salesPersonId = salesPerson._id;
+            validReferenceCode = formattedCode;
+        }
+
+        const provider = await ServiceProvider.create({
+            referenceCode: validReferenceCode,
+            salesPerson: salesPersonId,
+            fullName,
+            mobileNumber,
+            dateOfBirth,
+            gender,
+            residentialAddress,
+            city,
+            pinCode,
+            jobRoles,
+            preferredLocations,
+            workTypes,
+            expectedSalary,
+            education,
+            experience,
+            status: ProviderApprovalStatus.PENDING,
+            paymentStatus: PaymentStatus.PENDING,
+            isActive: true,
+        });
+
+        // Automatically create Razorpay order for registration fee if keys configured
+        let paymentOrder: any = null;
+        const activeFee = await RegistrationFee.findOne({ isActive: true }).sort({ updatedAt: -1 });
+        const feeAmount = Number(activeFee?.amount || process.env.PROVIDER_REGISTRATION_FEE || 499);
+
+        if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_SECRET) {
+            try {
+                const razorpay = new Razorpay({
+                    key_id: process.env.RAZORPAY_KEY_ID,
+                    key_secret: process.env.RAZORPAY_SECRET,
+                });
+
+                paymentOrder = await razorpay.orders.create({
+                    amount: Math.round(feeAmount * 100),
+                    currency: 'INR',
+                    receipt: `rec_reg_${provider._id}_${Date.now()}`.slice(0, 40),
+                    notes: {
+                        providerId: provider._id.toString(),
+                        providerName: provider.fullName,
+                        mobileNumber: provider.mobileNumber,
+                        type: 'PROVIDER_REGISTRATION',
+                    },
+                });
+
+                await RegistrationPayment.create({
+                    providerId: provider._id,
+                    amount: feeAmount,
+                    currency: 'INR',
+                    status: PaymentStatus.PENDING,
+                    gateway: PaymentGateway.RAZORPAY,
+                    orderId: paymentOrder.id,
+                });
+            } catch (err) {
+                console.error('Failed to create Razorpay order during registration:', err);
+            }
+        }
+
+        res.status(201).json({
+            success: true,
+            message: 'Service provider registered successfully. Please complete the registration payment.',
+            data: {
+                provider,
+                paymentOrder,
+                razorpayKeyId: process.env.RAZORPAY_KEY_ID,
+                registrationFee: feeAmount,
+            },
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * Get all Service Providers with filters, pagination, and sales person info
+ */
+export const getAllProviders = async (
+    req: AuthRequest,
+    res: Response,
+    next: NextFunction
+): Promise<void> => {
+    try {
+        const {
+            page = 1,
+            limit = 10,
+            search,
+            status,
+            paymentStatus,
+            jobRole,
+            city,
+            pinCode,
+            referenceCode,
+            salesPersonId,
+            isActive,
+        } = req.query as any;
+
+        const pageNum = Math.max(1, parseInt(String(page), 10) || 1);
+        const limitNum = Math.min(100, Math.max(1, parseInt(String(limit), 10) || 10));
+        const skip = (pageNum - 1) * limitNum;
+
+        const filter: Record<string, any> = {};
+
+        if (status) filter.status = status;
+        if (paymentStatus) filter.paymentStatus = paymentStatus;
+        if (jobRole) filter.jobRoles = jobRole;
+        if (city) filter.city = new RegExp(city.trim(), 'i');
+        if (pinCode) filter.pinCode = pinCode.trim();
+        if (referenceCode) filter.referenceCode = referenceCode.trim().toUpperCase();
+        if (salesPersonId && Types.ObjectId.isValid(salesPersonId)) {
+            filter.salesPerson = new Types.ObjectId(salesPersonId);
+        }
+        if (isActive !== undefined) {
+            filter.isActive = String(isActive) === 'true';
+        }
+
+        if (search) {
+            const regex = new RegExp(search.trim(), 'i');
+            filter.$or = [
+                { fullName: regex },
+                { mobileNumber: regex },
+                { city: regex },
+                { referenceCode: regex },
+            ];
+        }
+
+        const [providers, total] = await Promise.all([
+            ServiceProvider.find(filter)
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limitNum)
+                .populate('salesPerson', 'fullName email mobileNumber referenceCode'),
+            ServiceProvider.countDocuments(filter),
+        ]);
+
+        res.status(200).json({
+            success: true,
+            data: {
+                providers,
+                pagination: {
+                    total,
+                    page: pageNum,
+                    limit: limitNum,
+                    totalPages: Math.ceil(total / limitNum),
+                },
+            },
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * Get single Service Provider by ID
+ */
+export const getProviderById = async (
+    req: AuthRequest,
+    res: Response,
+    next: NextFunction
+): Promise<void> => {
+    try {
+        const { id } = req.params;
+
+        if (!id || !Types.ObjectId.isValid(id)) {
+            res.status(400).json({
+                success: false,
+                message: 'Invalid Provider ID format',
+            });
+            return;
+        }
+
+        const provider = await ServiceProvider.findById(id).populate(
+            'salesPerson',
+            'fullName email mobileNumber referenceCode'
+        );
+
+        if (!provider) {
+            res.status(404).json({
+                success: false,
+                message: 'Service provider not found',
+            });
+            return;
+        }
+
+        res.status(200).json({
+            success: true,
+            data: { provider },
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * Update Service Provider details
+ */
+export const updateProvider = async (
+    req: AuthRequest,
+    res: Response,
+    next: NextFunction
+): Promise<void> => {
+    try {
+        const { id } = req.params;
+        const updateData = { ...req.body };
+
+        if (!id || !Types.ObjectId.isValid(id)) {
+            res.status(400).json({
+                success: false,
+                message: 'Invalid Provider ID format',
+            });
+            return;
+        }
+
+        const provider = await ServiceProvider.findById(id);
+        if (!provider) {
+            res.status(404).json({
+                success: false,
+                message: 'Service provider not found',
+            });
+            return;
+        }
+
+        // If mobile number changed, ensure no conflict
+        if (updateData.mobileNumber && updateData.mobileNumber !== provider.mobileNumber) {
+            const conflict = await ServiceProvider.findOne({
+                mobileNumber: updateData.mobileNumber,
+                _id: { $ne: id },
+            });
+            if (conflict) {
+                res.status(400).json({
+                    success: false,
+                    message: 'Another service provider with this mobile number already exists',
+                });
+                return;
+            }
+        }
+
+        // If referenceCode changed, verify new sales person
+        if (
+            updateData.referenceCode &&
+            updateData.referenceCode.trim().toUpperCase() !== provider.referenceCode
+        ) {
+            const formattedCode = updateData.referenceCode.trim().toUpperCase();
+            const salesPerson = await User.findOne({
+                referenceCode: formattedCode,
+                isActive: true,
+            });
+
+            if (!salesPerson) {
+                res.status(400).json({
+                    success: false,
+                    message: `Invalid reference code '${updateData.referenceCode}'.`,
+                });
+                return;
+            }
+            updateData.referenceCode = formattedCode;
+            updateData.salesPerson = salesPerson._id;
+        }
+
+        const updated = await ServiceProvider.findByIdAndUpdate(id, updateData, {
+            new: true,
+            runValidators: true,
+        }).populate('salesPerson', 'fullName email mobileNumber referenceCode');
+
+        res.status(200).json({
+            success: true,
+            message: 'Service provider updated successfully',
+            data: { provider: updated },
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * Update Provider Approval Status (PENDING, APPROVED, REJECTED)
+ */
+export const updateProviderStatus = async (
+    req: AuthRequest,
+    res: Response,
+    next: NextFunction
+): Promise<void> => {
+    try {
+        const { id } = req.params;
+        const { status } = req.body;
+
+        if (!id || !Types.ObjectId.isValid(id)) {
+            res.status(400).json({
+                success: false,
+                message: 'Invalid Provider ID format',
+            });
+            return;
+        }
+
+        const provider = await ServiceProvider.findByIdAndUpdate(
+            id,
+            { status },
+            { new: true }
+        ).populate('salesPerson', 'fullName email mobileNumber referenceCode');
+
+        if (!provider) {
+            res.status(404).json({
+                success: false,
+                message: 'Service provider not found',
+            });
+            return;
+        }
+
+        res.status(200).json({
+            success: true,
+            message: `Provider status updated to ${status}`,
+            data: { provider },
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * Update Provider Payment Status (PENDING, SUCCESS, FAILED, REFUNDED)
+ */
+export const updateProviderPaymentStatus = async (
+    req: AuthRequest,
+    res: Response,
+    next: NextFunction
+): Promise<void> => {
+    try {
+        const { id } = req.params;
+        const { paymentStatus } = req.body;
+
+        if (!id || !Types.ObjectId.isValid(id)) {
+            res.status(400).json({
+                success: false,
+                message: 'Invalid Provider ID format',
+            });
+            return;
+        }
+
+        const provider = await ServiceProvider.findByIdAndUpdate(
+            id,
+            { paymentStatus },
+            { new: true }
+        ).populate('salesPerson', 'fullName email mobileNumber referenceCode');
+
+        if (!provider) {
+            res.status(404).json({
+                success: false,
+                message: 'Service provider not found',
+            });
+            return;
+        }
+
+        res.status(200).json({
+            success: true,
+            message: `Payment status updated to ${paymentStatus}`,
+            data: { provider },
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * Delete a Service Provider
+ */
+export const deleteProvider = async (
+    req: AuthRequest,
+    res: Response,
+    next: NextFunction
+): Promise<void> => {
+    try {
+        const { id } = req.params;
+
+        if (!id || !Types.ObjectId.isValid(id)) {
+            res.status(400).json({
+                success: false,
+                message: 'Invalid Provider ID format',
+            });
+            return;
+        }
+
+        const provider = await ServiceProvider.findByIdAndDelete(id);
+        if (!provider) {
+            res.status(404).json({
+                success: false,
+                message: 'Service provider not found',
+            });
+            return;
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Service provider deleted successfully',
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * Summary Statistics for Service Providers Dashboard
+ */
+export const getProviderStats = async (
+    req: AuthRequest,
+    res: Response,
+    next: NextFunction
+): Promise<void> => {
+    try {
+        const [
+            total,
+            pending,
+            approved,
+            rejected,
+            paid,
+            withReference,
+            withoutReference,
+        ] = await Promise.all([
+            ServiceProvider.countDocuments(),
+            ServiceProvider.countDocuments({ status: ProviderApprovalStatus.PENDING }),
+            ServiceProvider.countDocuments({ status: ProviderApprovalStatus.APPROVED }),
+            ServiceProvider.countDocuments({ status: ProviderApprovalStatus.REJECTED }),
+            ServiceProvider.countDocuments({ paymentStatus: PaymentStatus.SUCCESS }),
+            ServiceProvider.countDocuments({ referenceCode: { $exists: true, $ne: null } }),
+            ServiceProvider.countDocuments({
+                $or: [{ referenceCode: { $exists: false } }, { referenceCode: null }],
+            }),
+        ]);
+
+        // Top 5 sales persons by onboarded providers count
+        const topSalesPersons = await ServiceProvider.aggregate([
+            { $match: { salesPerson: { $exists: true, $ne: null } } },
+            { $group: { _id: '$salesPerson', count: { $sum: 1 } } },
+            { $sort: { count: -1 } },
+            { $limit: 5 },
+            {
+                $lookup: {
+                    from: 'users',
+                    localField: '_id',
+                    foreignField: '_id',
+                    as: 'salesPersonInfo',
+                },
+            },
+            { $unwind: '$salesPersonInfo' },
+            {
+                $project: {
+                    count: 1,
+                    fullName: '$salesPersonInfo.fullName',
+                    referenceCode: '$salesPersonInfo.referenceCode',
+                    email: '$salesPersonInfo.email',
+                },
+            },
+        ]);
+
+        res.status(200).json({
+            success: true,
+            data: {
+                total,
+                statusCounts: {
+                    pending,
+                    approved,
+                    rejected,
+                },
+                paymentCounts: {
+                    paid,
+                    unpaid: total - paid,
+                },
+                onboardingSource: {
+                    viaSalesTeam: withReference,
+                    direct: withoutReference,
+                },
+                topSalesPersons,
+            },
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * Public: Get basic provider registration and payment status for payment flow & status checks
+ */
+export const getProviderPublicStatus = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> => {
+    try {
+        const { id } = req.params;
+
+        if (!id || !Types.ObjectId.isValid(id)) {
+            res.status(400).json({
+                success: false,
+                message: 'Invalid Provider ID format',
+            });
+            return;
+        }
+
+        const provider = await ServiceProvider.findById(id).select(
+            'fullName mobileNumber city status paymentStatus jobRoles preferredLocations referenceCode createdAt'
+        );
+
+        if (!provider) {
+            res.status(404).json({
+                success: false,
+                message: 'Service provider not found',
+            });
+            return;
+        }
+
+        res.status(200).json({
+            success: true,
+            data: { provider },
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+
