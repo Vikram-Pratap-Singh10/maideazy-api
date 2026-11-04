@@ -15,7 +15,7 @@ const generateToken = (userId: string, email: string, userType: string): string 
  */
 export const login = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-        const { email, password } = req.body;
+        const { email, password, loginType } = req.body;
 
         const user = await User.findOne({ email: email.toLowerCase() })
             .select('+password')
@@ -35,6 +35,27 @@ export const login = async (req: Request, res: Response, next: NextFunction): Pr
                 message: 'Account is deactivated. Please contact administrator.',
             });
             return;
+        }
+
+        // Validate account role type against login selection if loginType is specified
+        if (loginType === 'ADMIN') {
+            const roleName = ((user.role as any)?.name || '').toLowerCase();
+            const isAdmin = user.userType === UserType.ADMIN || roleName.includes('admin');
+            if (!isAdmin) {
+                res.status(403).json({
+                    success: false,
+                    message: 'Access restricted: This account is registered as a Sales Partner. Please select "Sales Person" to sign in.',
+                });
+                return;
+            }
+        } else if (loginType === 'SALES_PERSON') {
+            if (user.userType === UserType.ADMIN) {
+                res.status(403).json({
+                    success: false,
+                    message: 'Access restricted: This account is an Administrator. Please select "Admin" to sign in.',
+                });
+                return;
+            }
         }
 
         const isMatch = await user.comparePassword(password);
@@ -198,6 +219,164 @@ export const changePassword = async (
         res.status(200).json({
             success: true,
             message: 'Password changed successfully',
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * Public Self-Registration for Sales Partners
+ */
+export const registerSalesPartner = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> => {
+    try {
+        const {
+            fullName,
+            mobileNumber,
+            email,
+            password,
+            flatNumber,
+            buildingName,
+            roadName,
+            localArea,
+            landmark,
+            city,
+            state,
+            pinCode,
+            hasSalesExperience,
+            previousExperience,
+            languagesKnown,
+            hasSmartphone,
+            panCardNumber,
+            panCardImage,
+            aadhaarNumber,
+            aadhaarDocument,
+            passportPhoto,
+            accountHolderName,
+            bankName,
+            accountNumber,
+            ifscCode,
+            branchName,
+            bankDocumentType,
+            bankDocument,
+            declarationAccepted,
+        } = req.body;
+
+        // Check if email already in use
+        const existingEmail = await User.findOne({ email: email.toLowerCase() });
+        if (existingEmail) {
+            res.status(400).json({
+                success: false,
+                message: 'A user with this email address already exists. Please sign in.',
+            });
+            return;
+        }
+
+        // Check if mobile already in use
+        const existingMobile = await User.findOne({ mobileNumber });
+        if (existingMobile) {
+            res.status(400).json({
+                success: false,
+                message: 'A user with this mobile number already exists. Please sign in.',
+            });
+            return;
+        }
+
+        // Find or create default Sales Person role with appropriate permissions
+        let salesRole = await Role.findOne({ name: 'Sales Person', isDeleted: false });
+        if (!salesRole) {
+            salesRole = await Role.create({
+                name: 'Sales Person',
+                description: 'Sales partner role for registering and managing service providers',
+                permissions: [
+                    { tab: 'dashboard', actions: [TabAction.READ] },
+                    { tab: 'service_providers', actions: [TabAction.CREATE, TabAction.READ] },
+                ],
+                isActive: true,
+                isDeleted: false,
+                deletedAt: null,
+            });
+        }
+
+        // Generate unique referenceCode for the new Sales Partner
+        const referenceCode = await User.generateUniqueReferenceCode('SP');
+
+        // Languages normalization
+        const languagesArray = Array.isArray(languagesKnown)
+            ? languagesKnown
+            : typeof languagesKnown === 'string'
+            ? languagesKnown.split(',').map((s: string) => s.trim())
+            : [];
+
+        const addressCombined = `${flatNumber}, ${buildingName}${roadName ? `, ${roadName}` : ''}, ${localArea}`;
+
+        const newSalesPartner = await User.create({
+            fullName,
+            email: email.toLowerCase(),
+            mobileNumber,
+            password: password || mobileNumber,
+            role: salesRole._id,
+            userType: UserType.SALES_PERSON,
+            referenceCode,
+            isActive: true,
+            location: {
+                address: addressCombined,
+                city,
+                state,
+                pinCode,
+                landmark,
+            },
+            salesPartnerDetails: {
+                flatNumber,
+                buildingName,
+                roadName,
+                localArea,
+                landmark,
+                city,
+                state,
+                pinCode,
+                hasSalesExperience: Boolean(hasSalesExperience),
+                previousExperience,
+                languagesKnown: languagesArray,
+                hasSmartphone: Boolean(hasSmartphone),
+                panCardNumber: panCardNumber?.toUpperCase(),
+                panCardImage,
+                aadhaarNumber,
+                aadhaarDocument,
+                passportPhoto,
+                accountHolderName,
+                bankName,
+                accountNumber,
+                ifscCode: ifscCode?.toUpperCase(),
+                branchName,
+                bankDocumentType: bankDocumentType || 'Bank Passbook',
+                bankDocument,
+                declarationAccepted: Boolean(declarationAccepted),
+                approvalStatus: 'APPROVED',
+            },
+        });
+
+        const createdPartner = await User.findById(newSalesPartner._id)
+            .populate('role')
+            .select('-password');
+
+        const token = generateToken(
+            newSalesPartner._id.toString(),
+            newSalesPartner.email,
+            newSalesPartner.userType
+        );
+
+        res.status(201).json({
+            success: true,
+            message: 'Sales Partner registered successfully! Welcome to MaidEazy.',
+            data: {
+                token,
+                user: createdPartner,
+            },
         });
     } catch (error) {
         next(error);

@@ -1,8 +1,10 @@
 import { z } from 'zod';
+import { createSalesPartnerSchema } from './user.validation.js';
 
 export const loginSchema = z.object({
     email: z.string().trim().email('Please enter a valid email address'),
     password: z.string().min(1, 'Password is required'),
+    loginType: z.enum(['ADMIN', 'SALES_PERSON']).optional(),
 });
 
 export const registerAdminSchema = z.object({
@@ -19,5 +21,9 @@ export const registerAdminSchema = z.object({
 export const changePasswordSchema = z.object({
     currentPassword: z.string().min(1, 'Current password is required'),
     newPassword: z.string().min(6, 'New password must be at least 6 characters'),
+});
+
+export const registerSalesPartnerSchema = createSalesPartnerSchema.extend({
+    password: z.string().min(6, 'Password must be at least 6 characters'),
 });
 
