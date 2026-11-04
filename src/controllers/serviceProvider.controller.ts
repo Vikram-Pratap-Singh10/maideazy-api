@@ -225,11 +225,7 @@ export const registerProvider = async (req: Request, res: Response, next: NextFu
 /**
  * Get all Service Providers with filters, pagination, and sales person info
  */
-export const getAllProviders = async (
-    req: AuthRequest,
-    res: Response,
-    next: NextFunction
-): Promise<void> => {
+export const getAllProviders = async (    req: AuthRequest,    res: Response,    next: NextFunction): Promise<void> => {
     try {
         const {
             page = 1,
@@ -303,11 +299,7 @@ export const getAllProviders = async (
 /**
  * Get single Service Provider by ID
  */
-export const getProviderById = async (
-    req: AuthRequest,
-    res: Response,
-    next: NextFunction
-): Promise<void> => {
+export const getProviderById = async (    req: AuthRequest,    res: Response,    next: NextFunction): Promise<void> => {
     try {
         const { id } = req.params;
 
@@ -667,3 +659,93 @@ export const getProviderPublicStatus = async (
 };
 
 
+
+
+/**
+ * Admin creates a Service Provider directly
+ */
+export const createProviderByAdmin = async (
+    req: AuthRequest,
+    res: Response,
+    next: NextFunction
+): Promise<void> => {
+    try {
+        const {
+            referenceCode,
+            fullName,
+            mobileNumber,
+            dateOfBirth,
+            gender,
+            residentialAddress,
+            city,
+            pinCode,
+            jobRoles,
+            preferredLocations,
+            workTypes,
+            expectedSalary,
+            education,
+            experience,
+            status = ProviderApprovalStatus.APPROVED,
+            paymentStatus = PaymentStatus.SUCCESS,
+            isActive = true,
+        } = req.body;
+
+        const existing = await ServiceProvider.findOne({ mobileNumber });
+        if (existing) {
+            res.status(400).json({
+                success: false,
+                message: 'A service provider with this mobile number already exists',
+            });
+            return;
+        }
+
+        let salesPersonId: Types.ObjectId | undefined;
+        let validReferenceCode: string | undefined;
+
+        if (referenceCode && referenceCode.trim()) {
+            const formattedCode = referenceCode.trim().toUpperCase();
+            const salesPerson = await User.findOne({
+                referenceCode: formattedCode,
+                isActive: true,
+            });
+            if (salesPerson) {
+                salesPersonId = salesPerson._id;
+                validReferenceCode = formattedCode;
+            }
+        }
+
+        const provider = await ServiceProvider.create({
+            fullName,
+            mobileNumber,
+            dateOfBirth,
+            gender,
+            residentialAddress,
+            city,
+            pinCode,
+            jobRoles,
+            preferredLocations,
+            workTypes,
+            expectedSalary,
+            education,
+            experience,
+            referenceCode: validReferenceCode,
+            salesPerson: salesPersonId,
+            status,
+            paymentStatus,
+            isActive,
+        });
+
+        const created = await ServiceProvider.findById(provider._id).populate(
+            'salesPerson',
+            'fullName email mobileNumber referenceCode'
+        );
+
+        res.status(201).json({
+            success: true,
+            message: 'Service provider created successfully by admin',
+            data: { provider: created },
+        });
+    } catch (error) {
+        next(error);
+    }
+};

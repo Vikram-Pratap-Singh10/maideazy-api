@@ -24,6 +24,45 @@ export interface ILocation {
     landmark?: string;
 }
 
+export interface ISalesPartnerDetails {
+    // Address Details
+    flatNumber?: string;
+    buildingName?: string;
+    roadName?: string;
+    localArea?: string;
+    landmark?: string;
+    city?: string;
+    state?: string;
+    pinCode?: string;
+
+    // Professional Details
+    hasSalesExperience?: boolean;
+    previousExperience?: string;
+    languagesKnown?: string[];
+    hasSmartphone?: boolean;
+
+    // Identity Verification & Document Upload
+    panCardNumber?: string;
+    panCardImage?: string;
+    aadhaarNumber?: string;
+    aadhaarDocument?: string;
+    passportPhoto?: string;
+
+    // Bank Account Details
+    accountHolderName?: string;
+    bankName?: string;
+    accountNumber?: string;
+    ifscCode?: string;
+    branchName?: string;
+    bankDocumentType?: 'Bank Passbook' | 'Cancelled Cheque' | 'Blank Cheque' | string;
+    bankDocument?: string;
+
+    // Declaration & Workflow
+    declarationAccepted?: boolean;
+    approvalStatus?: 'PENDING' | 'APPROVED' | 'REJECTED';
+    statusNotes?: string;
+}
+
 export interface IUser extends Document {
     _id: Types.ObjectId;
     fullName: string;
@@ -34,6 +73,7 @@ export interface IUser extends Document {
     userType: UserType;
     referenceCode?: string;
     location?: ILocation;
+    salesPartnerDetails?: ISalesPartnerDetails;
     createdBy?: Types.ObjectId;
     isActive: boolean;
     lastLogin?: Date;
@@ -74,6 +114,43 @@ const LocationSchema = new Schema<ILocation>(
         state: { type: String, trim: true },
         pinCode: { type: String, trim: true },
         landmark: { type: String, trim: true },
+    },
+    { _id: false }
+);
+
+const SalesPartnerDetailsSchema = new Schema<ISalesPartnerDetails>(
+    {
+        flatNumber: { type: String, trim: true },
+        buildingName: { type: String, trim: true },
+        roadName: { type: String, trim: true },
+        localArea: { type: String, trim: true },
+        landmark: { type: String, trim: true },
+        city: { type: String, trim: true },
+        state: { type: String, trim: true },
+        pinCode: { type: String, trim: true },
+        hasSalesExperience: { type: Boolean, default: false },
+        previousExperience: { type: String, trim: true },
+        languagesKnown: { type: [String], default: [] },
+        hasSmartphone: { type: Boolean, default: true },
+        panCardNumber: { type: String, trim: true, uppercase: true },
+        panCardImage: { type: String, trim: true },
+        aadhaarNumber: { type: String, trim: true },
+        aadhaarDocument: { type: String, trim: true },
+        passportPhoto: { type: String, trim: true },
+        accountHolderName: { type: String, trim: true },
+        bankName: { type: String, trim: true },
+        accountNumber: { type: String, trim: true },
+        ifscCode: { type: String, trim: true, uppercase: true },
+        branchName: { type: String, trim: true },
+        bankDocumentType: { type: String, trim: true },
+        bankDocument: { type: String, trim: true },
+        declarationAccepted: { type: Boolean, default: false },
+        approvalStatus: {
+            type: String,
+            enum: ['PENDING', 'APPROVED', 'REJECTED'],
+            default: 'PENDING',
+        },
+        statusNotes: { type: String, trim: true },
     },
     { _id: false }
 );
@@ -125,6 +202,9 @@ const UserSchema = new Schema<IUser, IUserModel>(
         },
         location: {
             type: LocationSchema,
+        },
+        salesPartnerDetails: {
+            type: SalesPartnerDetailsSchema,
         },
         createdBy: {
             type: Schema.Types.ObjectId,

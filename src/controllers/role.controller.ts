@@ -21,13 +21,13 @@ export const getAvailableTabsAndActions = async (
                 tabDefinitions: [
                     { tab: AdminTab.DASHBOARD, label: 'Dashboard', actions: [TabAction.READ] },
                     {
-                        tab: AdminTab.USERS,
-                        label: 'Team & Sales Persons',
+                        tab: AdminTab.ROLES,
+                        label: 'Roles & Permissions',
                         actions: [TabAction.CREATE, TabAction.READ, TabAction.UPDATE, TabAction.DELETE],
                     },
                     {
-                        tab: AdminTab.ROLES,
-                        label: 'Roles & Permissions',
+                        tab: AdminTab.SALES_PARTNERS,
+                        label: 'Sales Partners',
                         actions: [TabAction.CREATE, TabAction.READ, TabAction.UPDATE, TabAction.DELETE],
                     },
                     {
@@ -36,14 +36,24 @@ export const getAvailableTabsAndActions = async (
                         actions: [TabAction.CREATE, TabAction.READ, TabAction.UPDATE, TabAction.DELETE],
                     },
                     {
+                        tab: AdminTab.SUBSCRIPTIONS,
+                        label: 'Subscriptions',
+                        actions: [TabAction.CREATE, TabAction.READ, TabAction.UPDATE, TabAction.DELETE],
+                    },
+                    {
+                        tab: AdminTab.USERS,
+                        label: 'Customers & Users',
+                        actions: [TabAction.CREATE, TabAction.READ, TabAction.UPDATE, TabAction.DELETE],
+                    },
+                    {
                         tab: AdminTab.PAYMENTS,
-                        label: 'Payments',
+                        label: 'Transactions & Payments',
                         actions: [TabAction.READ, TabAction.UPDATE],
                     },
                     {
-                        tab: AdminTab.REPORTS,
-                        label: 'Reports & Analytics',
-                        actions: [TabAction.READ],
+                        tab: AdminTab.BANNERS,
+                        label: 'Banners',
+                        actions: [TabAction.CREATE, TabAction.READ, TabAction.UPDATE, TabAction.DELETE],
                     },
                     {
                         tab: AdminTab.SETTINGS,

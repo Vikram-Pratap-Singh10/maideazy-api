@@ -3,11 +3,13 @@ import mongoose, { Schema, Document, Types } from 'mongoose';
 // Standard Admin Panel Tabs & Actions for frontend UI reference
 export enum AdminTab {
     DASHBOARD = 'dashboard',
-    USERS = 'users',
     ROLES = 'roles',
+    SALES_PARTNERS = 'sales_partners',
     SERVICE_PROVIDERS = 'service_providers',
+    SUBSCRIPTIONS = 'subscriptions',
+    USERS = 'users',
     PAYMENTS = 'payments',
-    REPORTS = 'reports',
+    BANNERS = 'banners',
     SETTINGS = 'settings',
 }
 

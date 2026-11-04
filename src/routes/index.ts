@@ -5,6 +5,9 @@ import userRoutes from './user.routes.js';
 import serviceProviderRoutes from './serviceProvider.routes.js';
 import paymentRoutes from './payment.routes.js';
 import registrationFeeRoutes from './registrationFee.routes.js';
+import subscriptionRoutes from './subscription.routes.js';
+import uploadRoutes from './upload.routes.js';
+import notificationRoutes from './notification.routes.js';
 
 const router = Router();
 
@@ -24,5 +27,8 @@ router.use('/users', userRoutes);
 router.use('/service-providers', serviceProviderRoutes);
 router.use('/payments', paymentRoutes);
 router.use('/registration-fee', registrationFeeRoutes);
+router.use('/subscriptions', subscriptionRoutes);
+router.use('/upload', uploadRoutes);
+router.use('/notifications', notificationRoutes);
 
 export default router;

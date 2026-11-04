@@ -481,3 +481,507 @@ export const verifyReferenceCode = async (
         next(error);
     }
 };
+
+/**
+ * Admin creates a Sales Partner with the full MaidEazy registration form
+ */
+export const createSalesPartner = async (
+    req: AuthRequest,
+    res: Response,
+    next: NextFunction
+): Promise<void> => {
+    try {
+        const {
+            fullName,
+            mobileNumber,
+            email,
+            password,
+            flatNumber,
+            buildingName,
+            roadName,
+            localArea,
+            landmark,
+            city,
+            state,
+            pinCode,
+            hasSalesExperience,
+            previousExperience,
+            languagesKnown,
+            hasSmartphone,
+            panCardNumber,
+            panCardImage,
+            aadhaarNumber,
+            aadhaarDocument,
+            passportPhoto,
+            accountHolderName,
+            bankName,
+            accountNumber,
+            ifscCode,
+            branchName,
+            bankDocumentType,
+            bankDocument,
+            declarationAccepted,
+            approvalStatus = 'APPROVED',
+            roleId,
+        } = req.body;
+
+        // Check if email already exists
+        const existingEmail = await User.findOne({ email: email.toLowerCase() });
+        if (existingEmail) {
+            res.status(400).json({
+                success: false,
+                message: 'A user with this email address already exists',
+            });
+            return;
+        }
+
+        // Check if mobile already exists
+        const existingMobile = await User.findOne({ mobileNumber });
+        if (existingMobile) {
+            res.status(400).json({
+                success: false,
+                message: 'A user with this mobile number already exists',
+            });
+            return;
+        }
+
+        // Assign Sales Person role
+        let assignedRoleId = roleId;
+        if (!assignedRoleId || !Types.ObjectId.isValid(assignedRoleId)) {
+            const defaultRole = await Role.findOne({ name: 'Sales Person', isDeleted: false });
+            if (defaultRole) {
+                assignedRoleId = defaultRole._id;
+            }
+        }
+
+        // Generate unique referenceCode for the Sales Partner
+        const referenceCode = await User.generateUniqueReferenceCode('SP');
+
+        // Languages normalization
+        const languagesArray = Array.isArray(languagesKnown)
+            ? languagesKnown
+            : typeof languagesKnown === 'string'
+            ? languagesKnown.split(',').map((s: string) => s.trim())
+            : [];
+
+        const addressCombined = `${flatNumber}, ${buildingName}${roadName ? `, ${roadName}` : ''}, ${localArea}`;
+
+        const newSalesPartner = await User.create({
+            fullName,
+            email: email.toLowerCase(),
+            mobileNumber,
+            password: password || mobileNumber, // Default password to mobile number if not provided
+            role: assignedRoleId,
+            userType: UserType.SALES_PERSON,
+            referenceCode,
+            isActive: true,
+            createdBy: req.user?._id,
+            location: {
+                address: addressCombined,
+                city,
+                state,
+                pinCode,
+                landmark,
+            },
+            salesPartnerDetails: {
+                flatNumber,
+                buildingName,
+                roadName,
+                localArea,
+                landmark,
+                city,
+                state,
+                pinCode,
+                hasSalesExperience: Boolean(hasSalesExperience),
+                previousExperience,
+                languagesKnown: languagesArray,
+                hasSmartphone: Boolean(hasSmartphone),
+                panCardNumber: panCardNumber?.toUpperCase(),
+                panCardImage,
+                aadhaarNumber,
+                aadhaarDocument,
+                passportPhoto,
+                accountHolderName,
+                bankName,
+                accountNumber,
+                ifscCode: ifscCode?.toUpperCase(),
+                branchName,
+                bankDocumentType: bankDocumentType || 'Bank Passbook',
+                bankDocument,
+                declarationAccepted: Boolean(declarationAccepted),
+                approvalStatus,
+            },
+        });
+
+        const createdPartner = await User.findById(newSalesPartner._id)
+            .populate('role', 'name description')
+            .populate('createdBy', 'fullName email')
+            .select('-password');
+
+        res.status(201).json({
+            success: true,
+            message: 'Sales Partner registered successfully',
+            data: { salesPartner: createdPartner },
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * Get all Sales Partners with stats, search, and pagination
+ */
+export const getAllSalesPartners = async (
+    req: AuthRequest,
+    res: Response,
+    next: NextFunction
+): Promise<void> => {
+    try {
+        const {
+            page = 1,
+            limit = 10,
+            search,
+            approvalStatus,
+            isActive,
+        } = req.query as any;
+
+        const pageNum = Math.max(1, parseInt(String(page), 10) || 1);
+        const limitNum = Math.min(100, Math.max(1, parseInt(String(limit), 10) || 10));
+        const skip = (pageNum - 1) * limitNum;
+
+        const filter: Record<string, any> = {
+            userType: UserType.SALES_PERSON,
+        };
+
+        if (approvalStatus) {
+            filter['salesPartnerDetails.approvalStatus'] = approvalStatus;
+        }
+
+        if (isActive !== undefined) {
+            filter.isActive = String(isActive) === 'true';
+        }
+
+        if (search) {
+            const regex = new RegExp(search.trim(), 'i');
+            filter.$or = [
+                { fullName: regex },
+                { email: regex },
+                { mobileNumber: regex },
+                { referenceCode: regex },
+                { 'salesPartnerDetails.city': regex },
+                { 'salesPartnerDetails.state': regex },
+                { 'salesPartnerDetails.panCardNumber': regex },
+            ];
+        }
+
+        const [partners, total] = await Promise.all([
+            User.find(filter)
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limitNum)
+                .populate('role', 'name description')
+                .populate('createdBy', 'fullName email')
+                .select('-password'),
+            User.countDocuments(filter),
+        ]);
+
+        // Aggregate registered providers count for each partner's referenceCode
+        const referenceCodes = partners
+            .map((p) => p.referenceCode)
+            .filter((c): c is string => Boolean(c));
+
+        let providerCountMap: Record<string, number> = {};
+        if (referenceCodes.length > 0) {
+            const stats = await ServiceProvider.aggregate([
+                { $match: { referenceCode: { $in: referenceCodes } } },
+                { $group: { _id: '$referenceCode', count: { $sum: 1 } } },
+            ]);
+            stats.forEach((s) => {
+                if (s._id) providerCountMap[s._id] = s.count;
+            });
+        }
+
+        const partnersWithStats = partners.map((p) => ({
+            ...p.toObject(),
+            registeredProvidersCount: p.referenceCode ? providerCountMap[p.referenceCode] || 0 : 0,
+        }));
+
+        res.status(200).json({
+            success: true,
+            data: {
+                salesPartners: partnersWithStats,
+                pagination: {
+                    total,
+                    page: pageNum,
+                    limit: limitNum,
+                    totalPages: Math.ceil(total / limitNum),
+                },
+            },
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * Get single Sales Partner by ID with full details
+ */
+export const getSalesPartnerById = async (
+    req: AuthRequest,
+    res: Response,
+    next: NextFunction
+): Promise<void> => {
+    try {
+        const { id } = req.params;
+
+        if (!id || !Types.ObjectId.isValid(id)) {
+            res.status(400).json({ success: false, message: 'Invalid User ID format' });
+            return;
+        }
+
+        const partner = await User.findOne({ _id: id, userType: UserType.SALES_PERSON })
+            .populate('role', 'name description permissions')
+            .populate('createdBy', 'fullName email')
+            .select('-password');
+
+        if (!partner) {
+            res.status(404).json({ success: false, message: 'Sales Partner not found' });
+            return;
+        }
+
+        let registeredProviders: any[] = [];
+        if (partner.referenceCode) {
+            registeredProviders = await ServiceProvider.find({
+                referenceCode: partner.referenceCode,
+            })
+                .select('fullName mobileNumber status paymentStatus createdAt jobRoles city')
+                .sort({ createdAt: -1 })
+                .limit(50);
+        }
+
+        res.status(200).json({
+            success: true,
+            data: {
+                salesPartner: partner,
+                registeredProviders,
+                totalProviders: registeredProviders.length,
+            },
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * Update Sales Partner details
+ */
+export const updateSalesPartner = async (
+    req: AuthRequest,
+    res: Response,
+    next: NextFunction
+): Promise<void> => {
+    try {
+        const { id } = req.params;
+
+        if (!id || !Types.ObjectId.isValid(id)) {
+            res.status(400).json({ success: false, message: 'Invalid User ID format' });
+            return;
+        }
+
+        const partner = await User.findOne({ _id: id, userType: UserType.SALES_PERSON });
+        if (!partner) {
+            res.status(404).json({ success: false, message: 'Sales Partner not found' });
+            return;
+        }
+
+        const {
+            fullName,
+            mobileNumber,
+            email,
+            isActive,
+            approvalStatus,
+            statusNotes,
+            flatNumber,
+            buildingName,
+            roadName,
+            localArea,
+            landmark,
+            city,
+            state,
+            pinCode,
+            hasSalesExperience,
+            previousExperience,
+            languagesKnown,
+            hasSmartphone,
+            panCardNumber,
+            panCardImage,
+            aadhaarNumber,
+            aadhaarDocument,
+            passportPhoto,
+            accountHolderName,
+            bankName,
+            accountNumber,
+            ifscCode,
+            branchName,
+            bankDocumentType,
+            bankDocument,
+        } = req.body;
+
+        if (fullName !== undefined) partner.fullName = fullName;
+        if (email !== undefined) partner.email = email.toLowerCase();
+        if (mobileNumber !== undefined) partner.mobileNumber = mobileNumber;
+        if (isActive !== undefined) partner.isActive = isActive;
+
+        if (!partner.salesPartnerDetails) {
+            partner.salesPartnerDetails = {};
+        }
+
+        if (flatNumber !== undefined) partner.salesPartnerDetails.flatNumber = flatNumber;
+        if (buildingName !== undefined) partner.salesPartnerDetails.buildingName = buildingName;
+        if (roadName !== undefined) partner.salesPartnerDetails.roadName = roadName;
+        if (localArea !== undefined) partner.salesPartnerDetails.localArea = localArea;
+        if (landmark !== undefined) partner.salesPartnerDetails.landmark = landmark;
+        if (city !== undefined) {
+            partner.salesPartnerDetails.city = city;
+            if (partner.location) partner.location.city = city;
+        }
+        if (state !== undefined) {
+            partner.salesPartnerDetails.state = state;
+            if (partner.location) partner.location.state = state;
+        }
+        if (pinCode !== undefined) {
+            partner.salesPartnerDetails.pinCode = pinCode;
+            if (partner.location) partner.location.pinCode = pinCode;
+        }
+        if (hasSalesExperience !== undefined) partner.salesPartnerDetails.hasSalesExperience = Boolean(hasSalesExperience);
+        if (previousExperience !== undefined) partner.salesPartnerDetails.previousExperience = previousExperience;
+        if (languagesKnown !== undefined) {
+            partner.salesPartnerDetails.languagesKnown = Array.isArray(languagesKnown)
+                ? languagesKnown
+                : languagesKnown.split(',').map((s: string) => s.trim());
+        }
+        if (hasSmartphone !== undefined) partner.salesPartnerDetails.hasSmartphone = Boolean(hasSmartphone);
+        if (panCardNumber !== undefined) partner.salesPartnerDetails.panCardNumber = panCardNumber.toUpperCase();
+        if (panCardImage !== undefined) partner.salesPartnerDetails.panCardImage = panCardImage;
+        if (aadhaarNumber !== undefined) partner.salesPartnerDetails.aadhaarNumber = aadhaarNumber;
+        if (aadhaarDocument !== undefined) partner.salesPartnerDetails.aadhaarDocument = aadhaarDocument;
+        if (passportPhoto !== undefined) partner.salesPartnerDetails.passportPhoto = passportPhoto;
+        if (accountHolderName !== undefined) partner.salesPartnerDetails.accountHolderName = accountHolderName;
+        if (bankName !== undefined) partner.salesPartnerDetails.bankName = bankName;
+        if (accountNumber !== undefined) partner.salesPartnerDetails.accountNumber = accountNumber;
+        if (ifscCode !== undefined) partner.salesPartnerDetails.ifscCode = ifscCode.toUpperCase();
+        if (branchName !== undefined) partner.salesPartnerDetails.branchName = branchName;
+        if (bankDocumentType !== undefined) partner.salesPartnerDetails.bankDocumentType = bankDocumentType;
+        if (bankDocument !== undefined) partner.salesPartnerDetails.bankDocument = bankDocument;
+        if (approvalStatus !== undefined) partner.salesPartnerDetails.approvalStatus = approvalStatus;
+        if (statusNotes !== undefined) partner.salesPartnerDetails.statusNotes = statusNotes;
+
+        await partner.save();
+
+        const updated = await User.findById(id)
+            .populate('role', 'name description')
+            .populate('createdBy', 'fullName email')
+            .select('-password');
+
+        res.status(200).json({
+            success: true,
+            message: 'Sales Partner updated successfully',
+            data: { salesPartner: updated },
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * Delete Sales Partner
+ */
+export const deleteSalesPartner = async (
+    req: AuthRequest,
+    res: Response,
+    next: NextFunction
+): Promise<void> => {
+    try {
+        const { id } = req.params;
+
+        if (!id || !Types.ObjectId.isValid(id)) {
+            res.status(400).json({ success: false, message: 'Invalid User ID format' });
+            return;
+        }
+
+        const partner = await User.findOne({ _id: id, userType: UserType.SALES_PERSON });
+        if (!partner) {
+            res.status(404).json({ success: false, message: 'Sales Partner not found' });
+            return;
+        }
+
+        // Soft delete / deactivate if has registered providers
+        if (partner.referenceCode) {
+            const count = await ServiceProvider.countDocuments({ referenceCode: partner.referenceCode });
+            if (count > 0) {
+                partner.isActive = false;
+                await partner.save();
+                res.status(200).json({
+                    success: true,
+                    message: `Sales partner has ${count} registered provider(s). Account deactivated instead of permanent deletion.`,
+                });
+                return;
+            }
+        }
+
+        await User.findByIdAndDelete(id);
+        res.status(200).json({
+            success: true,
+            message: 'Sales partner deleted successfully',
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * Update Sales Partner status (APPROVED / REJECTED / PENDING)
+ */
+export const updateSalesPartnerStatus = async (
+    req: AuthRequest,
+    res: Response,
+    next: NextFunction
+): Promise<void> => {
+    try {
+        const { id } = req.params;
+        const { approvalStatus, statusNotes } = req.body;
+
+        if (!id || !Types.ObjectId.isValid(id)) {
+            res.status(400).json({ success: false, message: 'Invalid User ID format' });
+            return;
+        }
+
+        if (!['PENDING', 'APPROVED', 'REJECTED'].includes(approvalStatus)) {
+            res.status(400).json({ success: false, message: 'Invalid status value' });
+            return;
+        }
+
+        const partner = await User.findOne({ _id: id, userType: UserType.SALES_PERSON });
+        if (!partner) {
+            res.status(404).json({ success: false, message: 'Sales Partner not found' });
+            return;
+        }
+
+        if (!partner.salesPartnerDetails) {
+            partner.salesPartnerDetails = {};
+        }
+
+        partner.salesPartnerDetails.approvalStatus = approvalStatus;
+        if (statusNotes) partner.salesPartnerDetails.statusNotes = statusNotes;
+
+        await partner.save();
+
+        res.status(200).json({
+            success: true,
+            message: `Sales partner status updated to ${approvalStatus}`,
+            data: { salesPartner: partner },
+        });
+    } catch (error) {
+        next(error);
+    }
+};

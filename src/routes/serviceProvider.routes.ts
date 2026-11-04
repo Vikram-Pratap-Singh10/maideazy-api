@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
     registerProvider,
+    createProviderByAdmin,
     getProviderPublicStatus,
     getAllProviders,
     getProviderById,
@@ -19,6 +20,7 @@ import {
 } from '../middleware/validate.js';
 import {
     registerServiceProviderSchema,
+    adminCreateServiceProviderSchema,
     updateServiceProviderSchema,
     updateProviderStatusSchema,
     updateProviderPaymentStatusSchema,
@@ -49,6 +51,13 @@ router.use(authenticate);
 router.get(
     '/stats/summary',
     getProviderStats
+);
+
+// Admin creates a service provider directly
+router.post(
+    '/',
+    validateBody(adminCreateServiceProviderSchema),
+    createProviderByAdmin
 );
 
 // List all service providers

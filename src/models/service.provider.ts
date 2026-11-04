@@ -53,7 +53,7 @@ export interface IProvider extends Document {
     residentialAddress: string;
     city: string;
     pinCode: string;
-    jobRoles: JobRole[];
+    jobRoles: string[];
     preferredLocations: IPreferredLocation[];
     workTypes: WorkType[];
     expectedSalary?: number;
@@ -137,7 +137,6 @@ const ProviderSchema = new Schema<IProvider>(
         },
         jobRoles: {
             type: [String],
-            enum: Object.values(JobRole),
             validate: {
                 validator: (v: string[]) => Array.isArray(v) && v.length > 0,
                 message: 'Select at least one job role',

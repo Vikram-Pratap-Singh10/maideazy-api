@@ -7,27 +7,44 @@ export interface ValidationSchema {
     params?: ZodSchema;
 }
 
+const setProperty = (obj: any, prop: string, value: any) => {
+    try {
+        obj[prop] = value;
+    } catch {
+        Object.defineProperty(obj, prop, {
+            value,
+            writable: true,
+            enumerable: true,
+            configurable: true,
+        });
+    }
+};
+
 export const validate = (schema: ValidationSchema | ZodSchema) => {
     return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
         try {
             // If passed a direct ZodSchema, assume it validates the body
             if ('parseAsync' in schema && typeof schema.parseAsync === 'function') {
-                req.body = await schema.parseAsync(req.body);
+                const parsedBody = await schema.parseAsync(req.body);
+                setProperty(req, 'body', parsedBody);
                 return next();
             }
 
             const schemas = schema as ValidationSchema;
 
             if (schemas.body) {
-                req.body = await schemas.body.parseAsync(req.body);
+                const parsedBody = await schemas.body.parseAsync(req.body);
+                setProperty(req, 'body', parsedBody);
             }
 
             if (schemas.query) {
-                req.query = (await schemas.query.parseAsync(req.query)) as any;
+                const parsedQuery = (await schemas.query.parseAsync(req.query)) as any;
+                setProperty(req, 'query', parsedQuery);
             }
 
             if (schemas.params) {
-                req.params = (await schemas.params.parseAsync(req.params)) as any;
+                const parsedParams = (await schemas.params.parseAsync(req.params)) as any;
+                setProperty(req, 'params', parsedParams);
             }
 
             next();

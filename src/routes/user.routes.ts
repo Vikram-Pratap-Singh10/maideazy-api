@@ -7,6 +7,12 @@ import {
     updateTeamMember,
     deleteTeamMember,
     verifyReferenceCode,
+    createSalesPartner,
+    getAllSalesPartners,
+    getSalesPartnerById,
+    updateSalesPartner,
+    deleteSalesPartner,
+    updateSalesPartnerStatus,
 } from '../controllers/user.controller.js';
 import { authenticate } from '../middleware/auth.js';
 import { validate, validateBody, validateParams, validateQuery } from '../middleware/validate.js';
@@ -14,6 +20,8 @@ import {
     registerAppUserSchema,
     createTeamMemberSchema,
     updateTeamMemberSchema,
+    createSalesPartnerSchema,
+    updateSalesPartnerSchema,
     teamMemberQuerySchema,
     userIdParamSchema,
     referenceCodeParamSchema,
@@ -33,6 +41,56 @@ router.get(
     '/verify-reference/:code',
     validateParams(referenceCodeParamSchema),
     verifyReferenceCode
+);
+
+// Public route: Sales Partner registration from public landing / web form
+router.post(
+    '/sales-partners/public-register',
+    validateBody(createSalesPartnerSchema),
+    createSalesPartner
+);
+
+// Authenticated Sales Partner routes
+router.post(
+    '/sales-partners',
+    authenticate,
+    validateBody(createSalesPartnerSchema),
+    createSalesPartner
+);
+
+router.get(
+    '/sales-partners',
+    authenticate,
+    validateQuery(teamMemberQuerySchema),
+    getAllSalesPartners
+);
+
+router.get(
+    '/sales-partners/:id',
+    authenticate,
+    validateParams(userIdParamSchema),
+    getSalesPartnerById
+);
+
+router.put(
+    '/sales-partners/:id',
+    authenticate,
+    validate({ params: userIdParamSchema, body: updateSalesPartnerSchema }),
+    updateSalesPartner
+);
+
+router.patch(
+    '/sales-partners/:id/status',
+    authenticate,
+    validateParams(userIdParamSchema),
+    updateSalesPartnerStatus
+);
+
+router.delete(
+    '/sales-partners/:id',
+    authenticate,
+    validateParams(userIdParamSchema),
+    deleteSalesPartner
 );
 
 // Team / Sales Person management routes (requires authentication)
