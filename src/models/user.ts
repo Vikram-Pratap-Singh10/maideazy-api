@@ -82,6 +82,7 @@ export interface IUser extends Document {
     deviceType?: string;
     appVersionCode?: number;
     maidId?: string;
+    wallet_balance?: number;
     createdAt: Date;
     updatedAt: Date;
     comparePassword(candidatePassword: string): Promise<boolean>;
@@ -235,6 +236,10 @@ const UserSchema = new Schema<IUser, IUserModel>(
         maidId: {
             type: String,
             trim: true,
+        },
+        wallet_balance: {
+            type: Number,
+            default: 0,
         },
     },
     {

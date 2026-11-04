@@ -16,24 +16,16 @@ const generateToken = (userId: string, email: string, userType: string): string 
 export const login = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
         const { email, password, loginType } = req.body;
-
         const user = await User.findOne({ email: email.toLowerCase() })
             .select('+password')
             .populate('role');
-
         if (!user) {
-            res.status(401).json({
-                success: false,
-                message: 'Invalid email or password',
-            });
+            res.status(401).json({ success: false, message: 'Invalid email or password', });
             return;
         }
 
         if (!user.isActive) {
-            res.status(403).json({
-                success: false,
-                message: 'Account is deactivated. Please contact administrator.',
-            });
+            res.status(403).json({ success: false, message: 'Account is deactivated. Please contact administrator.', });
             return;
         }
 
@@ -42,28 +34,19 @@ export const login = async (req: Request, res: Response, next: NextFunction): Pr
             const roleName = ((user.role as any)?.name || '').toLowerCase();
             const isAdmin = user.userType === UserType.ADMIN || roleName.includes('admin');
             if (!isAdmin) {
-                res.status(403).json({
-                    success: false,
-                    message: 'Access restricted: This account is registered as a Sales Partner. Please select "Sales Person" to sign in.',
-                });
+                res.status(403).json({ success: false, message: 'Access restricted: This account is registered as a Sales Partner. Please select "Sales Person" to sign in.', });
                 return;
             }
         } else if (loginType === 'SALES_PERSON') {
             if (user.userType === UserType.ADMIN) {
-                res.status(403).json({
-                    success: false,
-                    message: 'Access restricted: This account is an Administrator. Please select "Admin" to sign in.',
-                });
+                res.status(403).json({ success: false, message: 'Access restricted: This account is an Administrator. Please select "Admin" to sign in.', });
                 return;
             }
         }
 
         const isMatch = await user.comparePassword(password);
         if (!isMatch) {
-            res.status(401).json({
-                success: false,
-                message: 'Invalid email or password',
-            });
+            res.status(401).json({ success: false, message: 'Invalid email or password', });
             return;
         }
 
@@ -76,14 +59,7 @@ export const login = async (req: Request, res: Response, next: NextFunction): Pr
         const userObj = user.toObject();
         delete userObj.password;
 
-        res.status(200).json({
-            success: true,
-            message: 'Login successful',
-            data: {
-                token,
-                user: userObj,
-            },
-        });
+        res.status(200).json({ success: true, message: 'Login successful', data: { token, user: userObj, }, });
     } catch (error) {
         next(error);
     }
@@ -93,11 +69,7 @@ export const login = async (req: Request, res: Response, next: NextFunction): Pr
  * Initial Admin Registration
  * Sets up Super Admin role with all tabs and actions if not present.
  */
-export const registerAdmin = async (
-    req: Request,
-    res: Response,
-    next: NextFunction
-): Promise<void> => {
+export const registerAdmin = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
         const { fullName, email, password, mobileNumber } = req.body;
 
@@ -186,11 +158,7 @@ export const getMe = async (req: AuthRequest, res: Response, next: NextFunction)
 /**
  * Change current user password
  */
-export const changePassword = async (
-    req: AuthRequest,
-    res: Response,
-    next: NextFunction
-): Promise<void> => {
+export const changePassword = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
         const { currentPassword, newPassword } = req.body;
         const userId = req.user?._id;
@@ -228,11 +196,7 @@ export const changePassword = async (
 /**
  * Public Self-Registration for Sales Partners
  */
-export const registerSalesPartner = async (
-    req: Request,
-    res: Response,
-    next: NextFunction
-): Promise<void> => {
+export const registerSalesPartner = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
         const {
             fullName,
@@ -309,8 +273,8 @@ export const registerSalesPartner = async (
         const languagesArray = Array.isArray(languagesKnown)
             ? languagesKnown
             : typeof languagesKnown === 'string'
-            ? languagesKnown.split(',').map((s: string) => s.trim())
-            : [];
+                ? languagesKnown.split(',').map((s: string) => s.trim())
+                : [];
 
         const addressCombined = `${flatNumber}, ${buildingName}${roadName ? `, ${roadName}` : ''}, ${localArea}`;
 

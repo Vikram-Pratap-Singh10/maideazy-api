@@ -5,7 +5,7 @@ import ServiceProvider, {
     ProviderApprovalStatus,
     PaymentStatus,
 } from '../models/service.provider.js';
-import User from '../models/user.js';
+import User, { UserType } from '../models/user.js';
 import RegistrationPayment, { PaymentGateway } from '../models/payment.js';
 import RegistrationFee from '../models/registrationFee.js';
 import { AuthRequest } from '../middleware/auth.js';
@@ -170,6 +170,13 @@ export const registerProvider = async (req: Request, res: Response, next: NextFu
             isActive: true,
         });
 
+        // Credit referral earning (50 INR) to sales person wallet
+        if (salesPersonId) {
+            await User.findByIdAndUpdate(salesPersonId, {
+                $inc: { wallet_balance: 50 },
+            });
+        }
+
         // Automatically create Razorpay order for registration fee if keys configured
         let paymentOrder: any = null;
         const activeFee = await RegistrationFee.findOne({ isActive: true }).sort({ updatedAt: -1 });
@@ -270,6 +277,24 @@ export const getAllProviders = async (    req: AuthRequest,    res: Response,   
             ];
         }
 
+        // If logged-in user is a Sales Person, restrict to only their registered / attributed providers
+        if (req.user && req.user.userType === UserType.SALES_PERSON) {
+            const userRefCode = req.user.referenceCode;
+            const userId = req.user._id;
+
+            const salesFilters: any[] = [{ salesPerson: userId }];
+            if (userRefCode) {
+                salesFilters.push({ referenceCode: userRefCode });
+            }
+
+            if (filter.$or) {
+                filter.$and = [{ $or: filter.$or }, { $or: salesFilters }];
+                delete filter.$or;
+            } else {
+                filter.$or = salesFilters;
+            }
+        }
+
         const [providers, total] = await Promise.all([
             ServiceProvider.find(filter)
                 .sort({ createdAt: -1 })
@@ -322,6 +347,24 @@ export const getProviderById = async (    req: AuthRequest,    res: Response,   
                 message: 'Service provider not found',
             });
             return;
+        }
+
+        // Restrict Sales Person to only their own service providers
+        if (req.user && req.user.userType === UserType.SALES_PERSON) {
+            const currentUserId = req.user._id ? String(req.user._id) : '';
+            const currentUserRefCode = req.user.referenceCode;
+
+            const isOwner =
+                (provider.salesPerson && String((provider.salesPerson as any)._id || provider.salesPerson) === currentUserId) ||
+                (provider.referenceCode && currentUserRefCode && provider.referenceCode === currentUserRefCode);
+
+            if (!isOwner) {
+                res.status(403).json({
+                    success: false,
+                    message: 'Access denied: You can only view service providers registered with your reference code',
+                });
+                return;
+            }
         }
 
         res.status(200).json({
@@ -714,6 +757,12 @@ export const createProviderByAdmin = async (
             }
         }
 
+        // If creator is a Sales Person and no referenceCode was specified, link to themselves
+        if (req.user && req.user.userType === UserType.SALES_PERSON && !salesPersonId) {
+            salesPersonId = req.user._id;
+            validReferenceCode = req.user.referenceCode;
+        }
+
         const provider = await ServiceProvider.create({
             fullName,
             mobileNumber,
@@ -734,6 +783,13 @@ export const createProviderByAdmin = async (
             paymentStatus,
             isActive,
         });
+
+        // Credit referral incentive (50 INR) to sales person wallet
+        if (salesPersonId) {
+            await User.findByIdAndUpdate(salesPersonId, {
+                $inc: { wallet_balance: 50 },
+            });
+        }
 
         const created = await ServiceProvider.findById(provider._id).populate(
             'salesPerson',

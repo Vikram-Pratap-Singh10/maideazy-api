@@ -8,6 +8,7 @@ import registrationFeeRoutes from './registrationFee.routes.js';
 import subscriptionRoutes from './subscription.routes.js';
 import uploadRoutes from './upload.routes.js';
 import notificationRoutes from './notification.routes.js';
+import dashboardRoutes from './dashboard.routes.js';
 
 const router = Router();
 
@@ -22,6 +23,8 @@ router.get('/health', (req, res) => {
 
 // Mount modular sub-routes
 router.use('/auth', authRoutes);
+router.use('/dashboard', dashboardRoutes);
+router.use('/admin', dashboardRoutes);
 router.use('/roles', roleRoutes);
 router.use('/users', userRoutes);
 router.use('/service-providers', serviceProviderRoutes);
