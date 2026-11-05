@@ -24,6 +24,6 @@ export const changePasswordSchema = z.object({
 });
 
 export const registerSalesPartnerSchema = createSalesPartnerSchema.extend({
-    password: z.string().min(6, 'Password must be at least 6 characters'),
+    password: z.string().min(6, 'Password must be at least 6 characters').optional(),
 });
 

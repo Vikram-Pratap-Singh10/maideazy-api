@@ -13,6 +13,7 @@ import {
     updateSalesPartner,
     deleteSalesPartner,
     updateSalesPartnerStatus,
+    resetSalesPartnerPassword,
 } from '../controllers/user.controller.js';
 import { authenticate } from '../middleware/auth.js';
 import { validate, validateBody, validateParams, validateQuery } from '../middleware/validate.js';
@@ -84,6 +85,13 @@ router.patch(
     authenticate,
     validateParams(userIdParamSchema),
     updateSalesPartnerStatus
+);
+
+router.post(
+    '/sales-partners/:id/reset-password',
+    authenticate,
+    validateParams(userIdParamSchema),
+    resetSalesPartnerPassword
 );
 
 router.delete(

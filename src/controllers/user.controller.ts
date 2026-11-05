@@ -941,6 +941,7 @@ export const deleteSalesPartner = async (
 
 /**
  * Update Sales Partner status (APPROVED / REJECTED / PENDING)
+ * When approving, automatically sets or verifies login password so the partner can log in.
  */
 export const updateSalesPartnerStatus = async (
     req: AuthRequest,
@@ -949,7 +950,7 @@ export const updateSalesPartnerStatus = async (
 ): Promise<void> => {
     try {
         const { id } = req.params;
-        const { approvalStatus, statusNotes } = req.body;
+        const { approvalStatus, statusNotes, tempPassword } = req.body;
 
         if (!id || !Types.ObjectId.isValid(id)) {
             res.status(400).json({ success: false, message: 'Invalid User ID format' });
@@ -961,7 +962,7 @@ export const updateSalesPartnerStatus = async (
             return;
         }
 
-        const partner = await User.findOne({ _id: id, userType: UserType.SALES_PERSON });
+        const partner = await User.findOne({ _id: id, userType: UserType.SALES_PERSON }).select('+password');
         if (!partner) {
             res.status(404).json({ success: false, message: 'Sales Partner not found' });
             return;
@@ -972,14 +973,96 @@ export const updateSalesPartnerStatus = async (
         }
 
         partner.salesPartnerDetails.approvalStatus = approvalStatus;
-        if (statusNotes) partner.salesPartnerDetails.statusNotes = statusNotes;
+        if (statusNotes !== undefined) partner.salesPartnerDetails.statusNotes = statusNotes;
+
+        let issuedPassword: string | null = null;
+
+        if (approvalStatus === 'APPROVED') {
+            partner.isActive = true;
+
+            // Generate referenceCode if missing
+            if (!partner.referenceCode) {
+                partner.referenceCode = await User.generateUniqueReferenceCode('SP');
+            }
+
+            // If a custom tempPassword was provided, use it
+            if (tempPassword && tempPassword.length >= 6) {
+                partner.password = tempPassword;
+                issuedPassword = tempPassword;
+            } else if (!partner.password) {
+                // If partner registered without a password, auto-generate a secure temporary password
+                const generatedPassword = `MaidEazy@${Math.floor(1000 + Math.random() * 9000)}`;
+                partner.password = generatedPassword;
+                issuedPassword = generatedPassword;
+            }
+        } else if (approvalStatus === 'REJECTED') {
+            partner.isActive = false;
+        }
 
         await partner.save();
+
+        const partnerObj = partner.toObject();
+        delete partnerObj.password;
 
         res.status(200).json({
             success: true,
             message: `Sales partner status updated to ${approvalStatus}`,
-            data: { salesPartner: partner },
+            data: {
+                salesPartner: partnerObj,
+                tempPassword: issuedPassword,
+            },
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * Admin resets or issues a new password for a Sales Partner
+ */
+export const resetSalesPartnerPassword = async (
+    req: AuthRequest,
+    res: Response,
+    next: NextFunction
+): Promise<void> => {
+    try {
+        const { id } = req.params;
+        const { newPassword } = req.body;
+
+        if (!id || !Types.ObjectId.isValid(id)) {
+            res.status(400).json({ success: false, message: 'Invalid User ID format' });
+            return;
+        }
+
+        const partner = await User.findOne({ _id: id, userType: UserType.SALES_PERSON });
+        if (!partner) {
+            res.status(404).json({ success: false, message: 'Sales Partner not found' });
+            return;
+        }
+
+        const effectivePassword =
+            newPassword && newPassword.length >= 6
+                ? newPassword
+                : `MaidEazy@${Math.floor(1000 + Math.random() * 9000)}`;
+
+        partner.password = effectivePassword;
+        partner.isActive = true;
+        if (!partner.referenceCode) {
+            partner.referenceCode = await User.generateUniqueReferenceCode('SP');
+        }
+        await partner.save();
+
+        res.status(200).json({
+            success: true,
+            message: 'Sales partner password reset successfully',
+            data: {
+                salesPartnerId: partner._id,
+                fullName: partner.fullName,
+                email: partner.email,
+                mobileNumber: partner.mobileNumber,
+                referenceCode: partner.referenceCode,
+                tempPassword: effectivePassword,
+            },
         });
     } catch (error) {
         next(error);

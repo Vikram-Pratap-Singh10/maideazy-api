@@ -170,10 +170,20 @@ export const registerProvider = async (req: Request, res: Response, next: NextFu
             isActive: true,
         });
 
-        // Credit referral earning (50 INR) to sales person wallet
+        // Determine referral incentive amount from selected or default registration fee plan
+        let commissionAmount = 50;
+        const targetFeePlan = req.body.registrationFeeId
+            ? await RegistrationFee.findById(req.body.registrationFeeId)
+            : await RegistrationFee.findOne({ isActive: true }).sort({ isDefault: -1, updatedAt: -1 });
+
+        if (targetFeePlan && typeof targetFeePlan.salesPersonCommission === 'number') {
+            commissionAmount = targetFeePlan.salesPersonCommission;
+        }
+
+        // Credit referral earning to sales person wallet
         if (salesPersonId) {
             await User.findByIdAndUpdate(salesPersonId, {
-                $inc: { wallet_balance: 50 },
+                $inc: { wallet_balance: commissionAmount },
             });
         }
 
@@ -784,10 +794,20 @@ export const createProviderByAdmin = async (
             isActive,
         });
 
-        // Credit referral incentive (50 INR) to sales person wallet
+        // Determine referral incentive amount from selected or default registration fee plan
+        let commissionAmount = 50;
+        const targetFeePlan = req.body.registrationFeeId
+            ? await RegistrationFee.findById(req.body.registrationFeeId)
+            : await RegistrationFee.findOne({ isActive: true }).sort({ isDefault: -1, updatedAt: -1 });
+
+        if (targetFeePlan && typeof targetFeePlan.salesPersonCommission === 'number') {
+            commissionAmount = targetFeePlan.salesPersonCommission;
+        }
+
+        // Credit referral incentive to sales person wallet
         if (salesPersonId) {
             await User.findByIdAndUpdate(salesPersonId, {
-                $inc: { wallet_balance: 50 },
+                $inc: { wallet_balance: commissionAmount },
             });
         }
 

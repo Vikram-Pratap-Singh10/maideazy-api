@@ -7,6 +7,7 @@ export enum AdminTab {
     SALES_PARTNERS = 'sales_partners',
     SERVICE_PROVIDERS = 'service_providers',
     SUBSCRIPTIONS = 'subscriptions',
+    REGISTRATION_FEES = 'registration_fees',
     USERS = 'users',
     PAYMENTS = 'payments',
     BANNERS = 'banners',

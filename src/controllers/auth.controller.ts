@@ -44,6 +44,33 @@ export const login = async (req: Request, res: Response, next: NextFunction): Pr
             }
         }
 
+        // Check approval status for Sales Partners
+        if (user.userType === UserType.SALES_PERSON || user.salesPartnerDetails) {
+            const approvalStatus = user.salesPartnerDetails?.approvalStatus || 'PENDING';
+            if (approvalStatus === 'PENDING') {
+                res.status(403).json({
+                    success: false,
+                    message: 'Your registration application is currently under review by MaidEazy Admin. You will be able to log in once your account is approved.',
+                });
+                return;
+            }
+            if (approvalStatus === 'REJECTED') {
+                const notes = user.salesPartnerDetails?.statusNotes ? ` Reason: ${user.salesPartnerDetails.statusNotes}` : '';
+                res.status(403).json({
+                    success: false,
+                    message: `Your registration was not approved.${notes} Please contact MaidEazy support.`,
+                });
+                return;
+            }
+            if (!user.password) {
+                res.status(403).json({
+                    success: false,
+                    message: 'Your account is approved but password has not been configured yet. Please check your approval message or contact administrator.',
+                });
+                return;
+            }
+        }
+
         const isMatch = await user.comparePassword(password);
         if (!isMatch) {
             res.status(401).json({ success: false, message: 'Invalid email or password', });
@@ -282,7 +309,7 @@ export const registerSalesPartner = async (req: Request, res: Response, next: Ne
             fullName,
             email: email.toLowerCase(),
             mobileNumber,
-            password: password || mobileNumber,
+            password: password ? password : undefined,
             role: salesRole._id,
             userType: UserType.SALES_PERSON,
             referenceCode,
@@ -320,26 +347,20 @@ export const registerSalesPartner = async (req: Request, res: Response, next: Ne
                 bankDocumentType: bankDocumentType || 'Bank Passbook',
                 bankDocument,
                 declarationAccepted: Boolean(declarationAccepted),
-                approvalStatus: 'APPROVED',
+                approvalStatus: 'PENDING',
             },
         });
 
-        const createdPartner = await User.findById(newSalesPartner._id)
-            .populate('role')
-            .select('-password');
-
-        const token = generateToken(
-            newSalesPartner._id.toString(),
-            newSalesPartner.email,
-            newSalesPartner.userType
-        );
-
         res.status(201).json({
             success: true,
-            message: 'Sales Partner registered successfully! Welcome to MaidEazy.',
+            message: 'Thank you! Your Sales Partner registration has been submitted successfully and is pending administrator approval.',
             data: {
-                token,
-                user: createdPartner,
+                referenceCode: newSalesPartner.referenceCode,
+                fullName: newSalesPartner.fullName,
+                email: newSalesPartner.email,
+                mobileNumber: newSalesPartner.mobileNumber,
+                approvalStatus: 'PENDING',
+                createdAt: newSalesPartner.createdAt,
             },
         });
     } catch (error) {

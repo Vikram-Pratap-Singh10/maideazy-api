@@ -41,6 +41,11 @@ export const getAvailableTabsAndActions = async (
                         actions: [TabAction.CREATE, TabAction.READ, TabAction.UPDATE, TabAction.DELETE],
                     },
                     {
+                        tab: AdminTab.REGISTRATION_FEES,
+                        label: 'Registration Fees',
+                        actions: [TabAction.CREATE, TabAction.READ, TabAction.UPDATE, TabAction.DELETE],
+                    },
+                    {
                         tab: AdminTab.USERS,
                         label: 'Customers & Users',
                         actions: [TabAction.CREATE, TabAction.READ, TabAction.UPDATE, TabAction.DELETE],
