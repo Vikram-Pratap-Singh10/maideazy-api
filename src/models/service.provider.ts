@@ -59,6 +59,7 @@ export interface IProvider extends Document {
     expectedSalary?: number;
     education?: string;
     experience?: string;
+    workHours?: string;
     status: ProviderApprovalStatus;
     paymentStatus: PaymentStatus;
     isActive: boolean;
@@ -67,125 +68,126 @@ export interface IProvider extends Document {
 }
 
 // Subdocument Schemas
-const PreferredLocationSchema = new Schema<IPreferredLocation>(
-    {
-        pinCode: {
-            type: String,
-            required: [true, 'Preferred PIN code is required'],
-            trim: true,
-            match: [/^[1-9][0-9]{5}$/, 'Please enter a valid 6-digit PIN code'],
-        },
-        city: {
-            type: String,
-            required: [true, 'Preferred city name is required'],
-            trim: true,
-        },
+const PreferredLocationSchema = new Schema<IPreferredLocation>({
+    pinCode: {
+        type: String,
+        required: [true, 'Preferred PIN code is required'],
+        trim: true,
+        match: [/^[1-9][0-9]{5}$/, 'Please enter a valid 6-digit PIN code'],
     },
+    city: {
+        type: String,
+        required: [true, 'Preferred city name is required'],
+        trim: true,
+    },
+},
     { _id: false }
 );
 
 // Main Schema
-const ProviderSchema = new Schema<IProvider>(
-    {
-        referenceCode: {
-            type: String,
-            trim: true,
-            uppercase: true,
-            index: true,
-        },
-        salesPerson: {
-            type: Schema.Types.ObjectId,
-            ref: 'User',
-            index: true,
-        },
-        fullName: {
-            type: String,
-            required: [true, 'Full name is required'],
-            trim: true,
-        },
-        mobileNumber: {
-            type: String,
-            required: [true, 'Mobile number is required'],
-            unique: true,
-            trim: true,
-            match: [/^[6-9]\d{9}$/, 'Please enter a valid 10-digit mobile number'],
-        },
-        dateOfBirth: {
-            type: Date,
-            required: [true, 'Date of birth is required'],
-        },
-        gender: {
-            type: String,
-            enum: Object.values(Gender),
-            required: [true, 'Gender is required'],
-        },
-        residentialAddress: {
-            type: String,
-            required: [true, 'Residential address is required'],
-            trim: true,
-        },
-        city: {
-            type: String,
-            required: [true, 'City is required'],
-            trim: true,
-        },
-        pinCode: {
-            type: String,
-            required: [true, 'PIN code is required'],
-            trim: true,
-            match: [/^[1-9][0-9]{5}$/, 'Please enter a valid 6-digit PIN code'],
-        },
-        jobRoles: {
-            type: [String],
-            validate: {
-                validator: (v: string[]) => Array.isArray(v) && v.length > 0,
-                message: 'Select at least one job role',
-            },
-        },
-        preferredLocations: {
-            type: [PreferredLocationSchema],
-            validate: {
-                validator: (v: IPreferredLocation[]) => Array.isArray(v) && v.length > 0,
-                message: 'At least one preferred location is required',
-            },
-        },
-        workTypes: {
-            type: [String],
-            enum: Object.values(WorkType),
-            validate: {
-                validator: (v: string[]) => Array.isArray(v) && v.length > 0,
-                message: 'Select at least one work type',
-            },
-        },
-        expectedSalary: {
-            type: Number,
-            min: [0, 'Expected salary must be a positive number'],
-        },
-        education: {
-            type: String,
-            trim: true,
-        },
-        experience: {
-            type: String,
-            trim: true,
-        },
-        status: {
-            type: String,
-            enum: Object.values(ProviderApprovalStatus),
-            default: ProviderApprovalStatus.PENDING,
-            index: true,
-        },
-        paymentStatus: {
-            type: String,
-            enum: Object.values(PaymentStatus),
-            default: PaymentStatus.PENDING,
-            index: true,
-        },
-        isActive: {
-            type: Boolean,
-            default: true,
+const ProviderSchema = new Schema<IProvider>({
+    referenceCode: {
+        type: String,
+        trim: true,
+        uppercase: true,
+        index: true,
+    },
+    salesPerson: {
+        type: Schema.Types.ObjectId,
+        ref: 'User',
+        index: true,
+    },
+    fullName: {
+        type: String,
+        required: [true, 'Full name is required'],
+        trim: true,
+    },
+    mobileNumber: {
+        type: String,
+        required: [true, 'Mobile number is required'],
+        unique: true,
+        trim: true,
+        match: [/^[6-9]\d{9}$/, 'Please enter a valid 10-digit mobile number'],
+    },
+    dateOfBirth: {
+        type: Date,
+        required: [true, 'Date of birth is required'],
+    },
+    gender: {
+        type: String,
+        enum: Object.values(Gender),
+        required: [true, 'Gender is required'],
+    },
+    residentialAddress: {
+        type: String,
+        required: [true, 'Residential address is required'],
+        trim: true,
+    },
+    city: {
+        type: String,
+        required: [true, 'City is required'],
+        trim: true,
+    },
+    pinCode: {
+        type: String,
+        required: [true, 'PIN code is required'],
+        trim: true,
+        match: [/^[1-9][0-9]{5}$/, 'Please enter a valid 6-digit PIN code'],
+    },
+    jobRoles: {
+        type: [String],
+        validate: {
+            validator: (v: string[]) => Array.isArray(v) && v.length > 0,
+            message: 'Select at least one job role',
         },
     },
+    preferredLocations: {
+        type: [PreferredLocationSchema],
+        validate: {
+            validator: (v: IPreferredLocation[]) => Array.isArray(v) && v.length > 0,
+            message: 'At least one preferred location is required',
+        },
+    },
+    workTypes: {
+        type: [String],
+        enum: Object.values(WorkType),
+        validate: {
+            validator: (v: string[]) => Array.isArray(v) && v.length > 0,
+            message: 'Select at least one work type',
+        },
+    },
+    expectedSalary: {
+        type: Number,
+        min: [0, 'Expected salary must be a positive number'],
+    },
+    education: {
+        type: String,
+        trim: true,
+    },
+    experience: {
+        type: String,
+        trim: true,
+    },
+    workHours: {
+        type: String
+    },
+    status: {
+        type: String,
+        enum: Object.values(ProviderApprovalStatus),
+        default: ProviderApprovalStatus.PENDING,
+        index: true,
+    },
+    paymentStatus: {
+        type: String,
+        enum: Object.values(PaymentStatus),
+        default: PaymentStatus.PENDING,
+        index: true,
+    },
+    isActive: {
+        type: Boolean,
+        default: true,
+    },
+},
     { timestamps: true }
 );
 

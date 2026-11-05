@@ -242,7 +242,7 @@ export const registerProvider = async (req: Request, res: Response, next: NextFu
 /**
  * Get all Service Providers with filters, pagination, and sales person info
  */
-export const getAllProviders = async (    req: AuthRequest,    res: Response,    next: NextFunction): Promise<void> => {
+export const getAllProviders = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
         const {
             page = 1,
@@ -334,7 +334,7 @@ export const getAllProviders = async (    req: AuthRequest,    res: Response,   
 /**
  * Get single Service Provider by ID
  */
-export const getProviderById = async (    req: AuthRequest,    res: Response,    next: NextFunction): Promise<void> => {
+export const getProviderById = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
         const { id } = req.params;
 
@@ -389,11 +389,7 @@ export const getProviderById = async (    req: AuthRequest,    res: Response,   
 /**
  * Update Service Provider details
  */
-export const updateProvider = async (
-    req: AuthRequest,
-    res: Response,
-    next: NextFunction
-): Promise<void> => {
+export const updateProvider = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
         const { id } = req.params;
         const updateData = { ...req.body };
@@ -717,11 +713,7 @@ export const getProviderPublicStatus = async (
 /**
  * Admin creates a Service Provider directly
  */
-export const createProviderByAdmin = async (
-    req: AuthRequest,
-    res: Response,
-    next: NextFunction
-): Promise<void> => {
+export const createProviderByAdmin = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
         const {
             referenceCode,
@@ -738,6 +730,7 @@ export const createProviderByAdmin = async (
             expectedSalary,
             education,
             experience,
+            workHours,
             status = ProviderApprovalStatus.APPROVED,
             paymentStatus = PaymentStatus.SUCCESS,
             isActive = true,
@@ -787,6 +780,7 @@ export const createProviderByAdmin = async (
             expectedSalary,
             education,
             experience,
+            workHours,
             referenceCode: validReferenceCode,
             salesPerson: salesPersonId,
             status,

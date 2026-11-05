@@ -8,11 +8,7 @@ import { AuthRequest } from '../middleware/auth.js';
 /**
  * Register App User (customer side registration with location)
  */
-export const registerAppUser = async (
-    req: Request,
-    res: Response,
-    next: NextFunction
-): Promise<void> => {
+export const registerAppUser = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
         const { fullName, email, password, mobileNumber, location } = req.body;
 
@@ -52,22 +48,9 @@ export const registerAppUser = async (
  * Admin creates a team member (sales person)
  * Auto-generates a unique referenceCode for the sales person
  */
-export const createTeamMember = async (
-    req: AuthRequest,
-    res: Response,
-    next: NextFunction
-): Promise<void> => {
+export const createTeamMember = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-        const {
-            fullName,
-            email,
-            password,
-            mobileNumber,
-            roleId,
-            userType = UserType.SALES_PERSON,
-            referencePrefix = 'SP',
-            location,
-        } = req.body;
+        const { fullName, email, password, mobileNumber, roleId, userType = UserType.SALES_PERSON, referencePrefix = 'SP', location, } = req.body;
 
         // Check if email already in use
         const existingEmail = await User.findOne({ email: email.toLowerCase() });
@@ -82,18 +65,12 @@ export const createTeamMember = async (
         // Validate that the assigned role exists and is active
         const role = await Role.findOne({ _id: roleId, isDeleted: false });
         if (!role) {
-            res.status(400).json({
-                success: false,
-                message: 'The selected role does not exist',
-            });
+            res.status(400).json({ success: false, message: 'The selected role does not exist', });
             return;
         }
 
         if (!role.isActive) {
-            res.status(400).json({
-                success: false,
-                message: 'The selected role is inactive and cannot be assigned',
-            });
+            res.status(400).json({ success: false, message: 'The selected role is inactive and cannot be assigned', });
             return;
         }
 
@@ -116,16 +93,7 @@ export const createTeamMember = async (
         const memberObj = newMember.toObject();
         delete memberObj.password;
 
-        res.status(201).json({
-            success: true,
-            message: 'Team member created successfully',
-            data: {
-                teamMember: {
-                    ...memberObj,
-                    role,
-                },
-            },
-        });
+        res.status(201).json({ success: true, message: 'Team member created successfully', data: { teamMember: { ...memberObj, role, }, }, });
     } catch (error) {
         next(error);
     }
@@ -134,11 +102,7 @@ export const createTeamMember = async (
 /**
  * Get all team members with pagination, filters, and provider onboarding count
  */
-export const getAllTeamMembers = async (
-    req: AuthRequest,
-    res: Response,
-    next: NextFunction
-): Promise<void> => {
+export const getAllTeamMembers = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
         const {
             page = 1,
@@ -234,11 +198,7 @@ export const getAllTeamMembers = async (
 /**
  * Get team member details by ID, including their onboarded service providers
  */
-export const getTeamMemberById = async (
-    req: AuthRequest,
-    res: Response,
-    next: NextFunction
-): Promise<void> => {
+export const getTeamMemberById = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
         const { id } = req.params;
 
@@ -295,11 +255,7 @@ export const getTeamMemberById = async (
 /**
  * Update team member details
  */
-export const updateTeamMember = async (
-    req: AuthRequest,
-    res: Response,
-    next: NextFunction
-): Promise<void> => {
+export const updateTeamMember = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
         const { id } = req.params;
         const { fullName, email, mobileNumber, roleId, isActive, location } = req.body;
@@ -561,8 +517,8 @@ export const createSalesPartner = async (
         const languagesArray = Array.isArray(languagesKnown)
             ? languagesKnown
             : typeof languagesKnown === 'string'
-            ? languagesKnown.split(',').map((s: string) => s.trim())
-            : [];
+                ? languagesKnown.split(',').map((s: string) => s.trim())
+                : [];
 
         const addressCombined = `${flatNumber}, ${buildingName}${roadName ? `, ${roadName}` : ''}, ${localArea}`;
 

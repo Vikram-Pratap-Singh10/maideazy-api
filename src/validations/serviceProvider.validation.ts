@@ -1,11 +1,5 @@
 import { z } from 'zod';
-import {
-    Gender,
-    JobRole,
-    WorkType,
-    ProviderApprovalStatus,
-    PaymentStatus,
-} from '../models/service.provider.js';
+import { Gender, JobRole, WorkType, ProviderApprovalStatus, PaymentStatus, } from '../models/service.provider.js';
 
 export const preferredLocationSchema = z.object({
     pinCode: z.string().trim().regex(/^[1-9][0-9]{5}$/, 'Please enter a valid 6-digit PIN code'),
@@ -70,6 +64,7 @@ export const adminCreateServiceProviderSchema = z.object({
     expectedSalary: z.number().nonnegative().optional(),
     education: z.string().trim().optional(),
     experience: z.string().trim().optional(),
+    workHours: z.string().trim().optional(),
     status: z.nativeEnum(ProviderApprovalStatus).default(ProviderApprovalStatus.APPROVED).optional(),
     paymentStatus: z.nativeEnum(PaymentStatus).default(PaymentStatus.SUCCESS).optional(),
     isActive: z.boolean().default(true).optional(),
@@ -94,6 +89,7 @@ export const updateServiceProviderSchema = z.object({
     expectedSalary: z.number().nonnegative().optional(),
     education: z.string().trim().optional(),
     experience: z.string().trim().optional(),
+    workHours: z.string().trim().optional(),
     status: z.nativeEnum(ProviderApprovalStatus).optional(),
     paymentStatus: z.nativeEnum(PaymentStatus).optional(),
     isActive: z.boolean().optional(),
