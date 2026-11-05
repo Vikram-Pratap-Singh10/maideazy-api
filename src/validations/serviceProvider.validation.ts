@@ -9,58 +9,34 @@ export const preferredLocationSchema = z.object({
 export const registerServiceProviderSchema = z.object({
     referenceCode: z.string().trim().toUpperCase().optional(),
     fullName: z.string().trim().min(2, 'Full name must be at least 2 characters'),
-    mobileNumber: z
-        .string()
-        .trim()
-        .regex(/^[6-9]\d{9}$/, 'Please enter a valid 10-digit mobile number'),
-    dateOfBirth: z.coerce.date({
-        message: 'Please enter a valid date of birth',
-    }),
-    gender: z.nativeEnum(Gender, {
-        message: 'Gender must be Male, Female, or Other',
-    }),
+    mobileNumber: z.string().trim().regex(/^[6-9]\d{9}$/, 'Please enter a valid 10-digit mobile number'),
+    dateOfBirth: z.coerce.date({ message: 'Please enter a valid date of birth', }),
+    gender: z.nativeEnum(Gender, { message: 'Gender must be Male, Female, or Other', }),
     residentialAddress: z.string().trim().min(5, 'Residential address is required'),
     city: z.string().trim().min(2, 'City is required'),
     pinCode: z.string().trim().regex(/^[1-9][0-9]{5}$/, 'Please enter a valid 6-digit PIN code'),
-    jobRoles: z
-        .array(z.string())
-        .min(1, 'Select at least one job role'),
-    preferredLocations: z
-        .array(preferredLocationSchema)
-        .min(1, 'At least one preferred location is required'),
-    workTypes: z
-        .array(z.nativeEnum(WorkType))
-        .min(1, 'Select at least one work type'),
+    jobRoles: z.array(z.string()).min(1, 'Select at least one job role'),
+    preferredLocations: z.array(preferredLocationSchema).min(1, 'At least one preferred location is required'),
+    workTypes: z.array(z.nativeEnum(WorkType)).min(1, 'Select at least one work type'),
     expectedSalary: z.number().nonnegative('Expected salary must be a positive number').optional(),
     education: z.string().trim().optional(),
     experience: z.string().trim().optional(),
+    registrationFeeId: z.string().optional(),
+    planId: z.string().optional(),
 });
 
 export const adminCreateServiceProviderSchema = z.object({
     referenceCode: z.string().trim().toUpperCase().optional(),
     fullName: z.string().trim().min(2, 'Full name must be at least 2 characters'),
-    mobileNumber: z
-        .string()
-        .trim()
-        .regex(/^[6-9]\d{9}$/, 'Please enter a valid 10-digit mobile number'),
-    dateOfBirth: z.coerce.date({
-        message: 'Please enter a valid date of birth',
-    }),
-    gender: z.nativeEnum(Gender, {
-        message: 'Gender must be Male, Female, or Other',
-    }),
+    mobileNumber: z.string().trim().regex(/^[6-9]\d{9}$/, 'Please enter a valid 10-digit mobile number'),
+    dateOfBirth: z.coerce.date({ message: 'Please enter a valid date of birth', }),
+    gender: z.nativeEnum(Gender, { message: 'Gender must be Male, Female, or Other', }),
     residentialAddress: z.string().trim().min(5, 'Residential address is required'),
     city: z.string().trim().min(2, 'City is required'),
     pinCode: z.string().trim().regex(/^[1-9][0-9]{5}$/, 'Please enter a valid 6-digit PIN code'),
-    jobRoles: z
-        .array(z.nativeEnum(JobRole))
-        .min(1, 'Select at least one job role'),
-    preferredLocations: z
-        .array(preferredLocationSchema)
-        .min(1, 'At least one preferred location is required'),
-    workTypes: z
-        .array(z.nativeEnum(WorkType))
-        .min(1, 'Select at least one work type'),
+    jobRoles: z.array(z.nativeEnum(JobRole)).min(1, 'Select at least one job role'),
+    preferredLocations: z.array(preferredLocationSchema).min(1, 'At least one preferred location is required'),
+    workTypes: z.array(z.nativeEnum(WorkType)).min(1, 'Select at least one work type'),
     expectedSalary: z.number().nonnegative().optional(),
     education: z.string().trim().optional(),
     experience: z.string().trim().optional(),
@@ -73,11 +49,7 @@ export const adminCreateServiceProviderSchema = z.object({
 export const updateServiceProviderSchema = z.object({
     referenceCode: z.string().trim().toUpperCase().optional(),
     fullName: z.string().trim().min(2).optional(),
-    mobileNumber: z
-        .string()
-        .trim()
-        .regex(/^[6-9]\d{9}$/, 'Please enter a valid 10-digit mobile number')
-        .optional(),
+    mobileNumber: z.string().trim().regex(/^[6-9]\d{9}$/, 'Please enter a valid 10-digit mobile number').optional(),
     dateOfBirth: z.coerce.date().optional(),
     gender: z.nativeEnum(Gender).optional(),
     residentialAddress: z.string().trim().min(5).optional(),
@@ -118,10 +90,7 @@ export const providerQuerySchema = z.object({
     pinCode: z.string().optional(),
     referenceCode: z.string().trim().toUpperCase().optional(),
     salesPersonId: z.string().optional(),
-    isActive: z
-        .string()
-        .transform((val) => val === 'true')
-        .optional(),
+    isActive: z.string().transform((val) => val === 'true').optional(),
 });
 
 export const providerIdParamSchema = z.object({

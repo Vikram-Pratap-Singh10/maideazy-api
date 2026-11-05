@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 export const createRegistrationOrderSchema = z.object({
     providerId: z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid Provider ID format'),
+    planId: z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid Plan ID format').optional(),
     amount: z.number().positive('Amount must be greater than 0').optional(),
 });
 

@@ -23,7 +23,7 @@ const getRazorpayInstance = (): Razorpay => {
  */
 export const createRegistrationOrder = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-        const { providerId, amount } = req.body;
+        const { providerId, planId, amount } = req.body;
 
         // Verify provider exists
         const provider = await ServiceProvider.findById(providerId);
@@ -45,9 +45,21 @@ export const createRegistrationOrder = async (req: Request, res: Response, next:
             return;
         }
 
-        // Fetch active registration fee configuration or fallback
-        const activeFee = await RegistrationFee.findOne({ isActive: true }).sort({ updatedAt: -1 });
-        const feeAmount = Number(amount || activeFee?.amount || process.env.PROVIDER_REGISTRATION_FEE || 499);
+        // Fetch selected or active default registration fee configuration
+        let targetPlan = null;
+        if (planId && Types.ObjectId.isValid(planId)) {
+            targetPlan = await RegistrationFee.findById(planId);
+        }
+        if (!targetPlan) {
+            targetPlan = await RegistrationFee.findOne({ isActive: true }).sort({ isDefault: -1, updatedAt: -1 });
+        }
+
+        const baseAmount = Number(targetPlan?.amount || process.env.PROVIDER_REGISTRATION_FEE || 499);
+        const roleCount = provider.jobRoles?.length || 1;
+        const extraRoleFee = Math.max(0, roleCount - 1) * 50;
+        const calculatedTotal = baseAmount + extraRoleFee;
+        const feeAmount = amount ? Number(amount) : calculatedTotal;
+
         const razorpay = getRazorpayInstance();
 
         const options = {
@@ -58,6 +70,11 @@ export const createRegistrationOrder = async (req: Request, res: Response, next:
                 providerId: providerId.toString(),
                 providerName: provider.fullName,
                 mobileNumber: provider.mobileNumber,
+                planId: targetPlan?._id ? targetPlan._id.toString() : '',
+                planTitle: targetPlan?.title || 'Registration Plan',
+                baseAmount: String(baseAmount),
+                extraRoleFee: String(extraRoleFee),
+                roleCount: String(roleCount),
                 type: 'PROVIDER_REGISTRATION',
             },
         };
@@ -75,8 +92,20 @@ export const createRegistrationOrder = async (req: Request, res: Response, next:
             metadata: {
                 orderId: order.id,
                 amount: feeAmount,
+                planId: targetPlan?._id,
+                planTitle: targetPlan?.title,
+                baseAmount,
+                extraRoleFee,
+                roleCount,
             },
         });
+
+        // Link plan and extra role fee to provider
+        if (targetPlan) {
+            provider.registrationFee = targetPlan._id;
+        }
+        provider.extraRoleCharge = extraRoleFee;
+        await provider.save();
 
         res.status(200).json({
             success: true,
@@ -87,6 +116,10 @@ export const createRegistrationOrder = async (req: Request, res: Response, next:
                 paymentRecordId: paymentRecord._id,
                 providerId: provider._id,
                 amount: feeAmount,
+                baseAmount,
+                extraRoleFee,
+                roleCount,
+                plan: targetPlan,
             },
         });
     } catch (error) {

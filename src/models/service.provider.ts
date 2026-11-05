@@ -62,6 +62,8 @@ export interface IProvider extends Document {
     workHours?: string;
     status: ProviderApprovalStatus;
     paymentStatus: PaymentStatus;
+    registrationFee?: Types.ObjectId;
+    extraRoleCharge?: number;
     isActive: boolean;
     createdAt: Date;
     updatedAt: Date;
@@ -182,6 +184,15 @@ const ProviderSchema = new Schema<IProvider>({
         enum: Object.values(PaymentStatus),
         default: PaymentStatus.PENDING,
         index: true,
+    },
+    registrationFee: {
+        type: Schema.Types.ObjectId,
+        ref: 'RegistrationFee',
+    },
+    extraRoleCharge: {
+        type: Number,
+        default: 0,
+        min: 0,
     },
     isActive: {
         type: Boolean,

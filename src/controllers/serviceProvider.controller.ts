@@ -76,8 +76,25 @@ export const registerProvider = async (req: Request, res: Response, next: NextFu
             if (salesPersonId) existing.salesPerson = salesPersonId;
             await existing.save();
 
-            const activeFee = await RegistrationFee.findOne({ isActive: true }).sort({ updatedAt: -1 });
-            const feeAmount = Number(activeFee?.amount || process.env.PROVIDER_REGISTRATION_FEE || 499);
+            const planParam = req.body.registrationFeeId || req.body.planId;
+            let targetFeePlan = null;
+            if (planParam && Types.ObjectId.isValid(planParam)) {
+                targetFeePlan = await RegistrationFee.findById(planParam);
+            }
+            if (!targetFeePlan) {
+                targetFeePlan = await RegistrationFee.findOne({ isActive: true }).sort({ isDefault: -1, updatedAt: -1 });
+            }
+
+            const extraRoleFee = Math.max(0, (existing.jobRoles?.length || 1) - 1) * 50;
+            const baseAmount = Number(targetFeePlan?.amount || process.env.PROVIDER_REGISTRATION_FEE || 499);
+            const feeAmount = baseAmount + extraRoleFee;
+
+            if (targetFeePlan) {
+                existing.registrationFee = targetFeePlan._id;
+            }
+            existing.extraRoleCharge = extraRoleFee;
+            await existing.save();
+
             let paymentOrder: any = null;
 
             if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_SECRET) {
@@ -95,6 +112,11 @@ export const registerProvider = async (req: Request, res: Response, next: NextFu
                             providerId: existing._id.toString(),
                             providerName: existing.fullName,
                             mobileNumber: existing.mobileNumber,
+                            planId: targetFeePlan?._id ? targetFeePlan._id.toString() : '',
+                            planTitle: targetFeePlan?.title || 'Registration Plan',
+                            baseAmount: String(baseAmount),
+                            extraRoleFee: String(extraRoleFee),
+                            roleCount: String(existing.jobRoles?.length || 1),
                             type: 'PROVIDER_REGISTRATION',
                         },
                     });
@@ -106,6 +128,14 @@ export const registerProvider = async (req: Request, res: Response, next: NextFu
                         status: PaymentStatus.PENDING,
                         gateway: PaymentGateway.RAZORPAY,
                         orderId: paymentOrder.id,
+                        metadata: {
+                            orderId: paymentOrder.id,
+                            amount: feeAmount,
+                            planId: targetFeePlan?._id,
+                            planTitle: targetFeePlan?.title,
+                            baseAmount,
+                            extraRoleFee,
+                        },
                     });
                 } catch (err) {
                     console.error('Failed to create Razorpay order for existing provider:', err);
@@ -120,6 +150,9 @@ export const registerProvider = async (req: Request, res: Response, next: NextFu
                     paymentOrder,
                     razorpayKeyId: process.env.RAZORPAY_KEY_ID,
                     registrationFee: feeAmount,
+                    baseFee: baseAmount,
+                    extraRoleFee,
+                    plan: targetFeePlan,
                     isExistingPending: true,
                 },
             });
@@ -171,11 +204,27 @@ export const registerProvider = async (req: Request, res: Response, next: NextFu
         });
 
         // Determine referral incentive amount from selected or default registration fee plan
-        let commissionAmount = 50;
-        const targetFeePlan = req.body.registrationFeeId
-            ? await RegistrationFee.findById(req.body.registrationFeeId)
-            : await RegistrationFee.findOne({ isActive: true }).sort({ isDefault: -1, updatedAt: -1 });
+        const planParam = req.body.registrationFeeId || req.body.planId;
+        let targetFeePlan = null;
+        if (planParam && Types.ObjectId.isValid(planParam)) {
+            targetFeePlan = await RegistrationFee.findById(planParam);
+        }
+        if (!targetFeePlan) {
+            targetFeePlan = await RegistrationFee.findOne({ isActive: true }).sort({ isDefault: -1, updatedAt: -1 });
+        }
 
+        const extraRoleFee = Math.max(0, (jobRoles?.length || 1) - 1) * 50;
+        const baseAmount = Number(targetFeePlan?.amount || process.env.PROVIDER_REGISTRATION_FEE || 499);
+        const feeAmount = baseAmount + extraRoleFee;
+
+        // Attach plan and extra role fee to provider
+        if (targetFeePlan) {
+            provider.registrationFee = targetFeePlan._id;
+        }
+        provider.extraRoleCharge = extraRoleFee;
+        await provider.save();
+
+        let commissionAmount = 50;
         if (targetFeePlan && typeof targetFeePlan.salesPersonCommission === 'number') {
             commissionAmount = targetFeePlan.salesPersonCommission;
         }
@@ -189,8 +238,6 @@ export const registerProvider = async (req: Request, res: Response, next: NextFu
 
         // Automatically create Razorpay order for registration fee if keys configured
         let paymentOrder: any = null;
-        const activeFee = await RegistrationFee.findOne({ isActive: true }).sort({ updatedAt: -1 });
-        const feeAmount = Number(activeFee?.amount || process.env.PROVIDER_REGISTRATION_FEE || 499);
 
         if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_SECRET) {
             try {
@@ -207,6 +254,11 @@ export const registerProvider = async (req: Request, res: Response, next: NextFu
                         providerId: provider._id.toString(),
                         providerName: provider.fullName,
                         mobileNumber: provider.mobileNumber,
+                        planId: targetFeePlan?._id ? targetFeePlan._id.toString() : '',
+                        planTitle: targetFeePlan?.title || 'Registration Plan',
+                        baseAmount: String(baseAmount),
+                        extraRoleFee: String(extraRoleFee),
+                        roleCount: String(jobRoles?.length || 1),
                         type: 'PROVIDER_REGISTRATION',
                     },
                 });
@@ -218,6 +270,14 @@ export const registerProvider = async (req: Request, res: Response, next: NextFu
                     status: PaymentStatus.PENDING,
                     gateway: PaymentGateway.RAZORPAY,
                     orderId: paymentOrder.id,
+                    metadata: {
+                        orderId: paymentOrder.id,
+                        amount: feeAmount,
+                        planId: targetFeePlan?._id,
+                        planTitle: targetFeePlan?.title,
+                        baseAmount,
+                        extraRoleFee,
+                    },
                 });
             } catch (err) {
                 console.error('Failed to create Razorpay order during registration:', err);
@@ -232,6 +292,9 @@ export const registerProvider = async (req: Request, res: Response, next: NextFu
                 paymentOrder,
                 razorpayKeyId: process.env.RAZORPAY_KEY_ID,
                 registrationFee: feeAmount,
+                baseFee: baseAmount,
+                extraRoleFee,
+                plan: targetFeePlan,
             },
         });
     } catch (error) {
