@@ -31,6 +31,7 @@ export const registerProvider = async (req: Request, res: Response, next: NextFu
             expectedSalary,
             education,
             experience,
+            profilePhoto,
         } = req.body;
 
         // Check if mobile number is already registered
@@ -72,6 +73,7 @@ export const registerProvider = async (req: Request, res: Response, next: NextFu
             if (expectedSalary !== undefined) existing.expectedSalary = expectedSalary;
             if (education !== undefined) existing.education = education;
             if (experience !== undefined) existing.experience = experience;
+            if (profilePhoto !== undefined) existing.profilePhoto = profilePhoto;
             if (validReferenceCode) existing.referenceCode = validReferenceCode;
             if (salesPersonId) existing.salesPerson = salesPersonId;
             await existing.save();
@@ -198,6 +200,7 @@ export const registerProvider = async (req: Request, res: Response, next: NextFu
             expectedSalary,
             education,
             experience,
+            profilePhoto,
             status: ProviderApprovalStatus.PENDING,
             paymentStatus: PaymentStatus.PENDING,
             isActive: true,
@@ -750,7 +753,7 @@ export const getProviderPublicStatus = async (
         }
 
         const provider = await ServiceProvider.findById(id).select(
-            'fullName mobileNumber city status paymentStatus jobRoles preferredLocations referenceCode createdAt'
+            'fullName mobileNumber city status paymentStatus jobRoles preferredLocations referenceCode profilePhoto createdAt'
         );
 
         if (!provider) {
@@ -794,6 +797,7 @@ export const createProviderByAdmin = async (req: AuthRequest, res: Response, nex
             education,
             experience,
             workHours,
+            profilePhoto,
             status = ProviderApprovalStatus.APPROVED,
             paymentStatus = PaymentStatus.SUCCESS,
             isActive = true,
@@ -844,6 +848,7 @@ export const createProviderByAdmin = async (req: AuthRequest, res: Response, nex
             education,
             experience,
             workHours,
+            profilePhoto,
             referenceCode: validReferenceCode,
             salesPerson: salesPersonId,
             status,

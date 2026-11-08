@@ -60,6 +60,7 @@ export interface IProvider extends Document {
     education?: string;
     experience?: string;
     workHours?: string;
+    profilePhoto?: string;
     status: ProviderApprovalStatus;
     paymentStatus: PaymentStatus;
     registrationFee?: Types.ObjectId;
@@ -172,6 +173,10 @@ const ProviderSchema = new Schema<IProvider>({
     },
     workHours: {
         type: String
+    },
+    profilePhoto: {
+        type: String,
+        trim: true,
     },
     status: {
         type: String,

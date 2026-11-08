@@ -171,10 +171,95 @@ export const getMe = async (req: AuthRequest, res: Response, next: NextFunction)
             return;
         }
 
+        const user = await User.findById(req.user._id).populate('role');
+        if (!user) {
+            res.status(404).json({
+                success: false,
+                message: 'User not found',
+            });
+            return;
+        }
+
+        const userObj = user.toObject();
+        delete userObj.password;
+
         res.status(200).json({
             success: true,
             data: {
-                user: req.user,
+                user: userObj,
+                ...userObj,
+            },
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * Update current user profile
+ */
+export const updateProfile = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+        if (!req.user) {
+            res.status(401).json({
+                success: false,
+                message: 'Unauthorized',
+            });
+            return;
+        }
+
+        const { fullName, email, phone, mobileNumber, profile_image } = req.body;
+        const user = await User.findById(req.user._id);
+        if (!user) {
+            res.status(404).json({
+                success: false,
+                message: 'User not found',
+            });
+            return;
+        }
+
+        if (fullName && typeof fullName === 'string') {
+            user.fullName = fullName.trim();
+        }
+
+        if (email && typeof email === 'string') {
+            const normalizedEmail = email.toLowerCase().trim();
+            if (normalizedEmail !== user.email) {
+                const existing = await User.findOne({ email: normalizedEmail, _id: { $ne: user._id } });
+                if (existing) {
+                    res.status(400).json({
+                        success: false,
+                        message: 'A user with this email already exists',
+                    });
+                    return;
+                }
+                user.email = normalizedEmail;
+            }
+        }
+
+        const incomingPhone = mobileNumber || phone;
+        if (incomingPhone && typeof incomingPhone === 'string') {
+            const cleanPhone = incomingPhone.trim();
+            user.mobileNumber = cleanPhone;
+            user.phone = cleanPhone;
+        }
+
+        if (profile_image !== undefined) {
+            user.profile_image = profile_image;
+        }
+
+        await user.save();
+        await user.populate('role');
+
+        const userObj = user.toObject();
+        delete userObj.password;
+
+        res.status(200).json({
+            success: true,
+            message: 'Profile updated successfully',
+            data: {
+                user: userObj,
+                ...userObj,
             },
         });
     } catch (error) {

@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { updateProfile } from '../controllers/auth.controller.js';
 import {
     registerAppUser,
     createTeamMember,
@@ -50,6 +51,10 @@ router.post(
     validateBody(createSalesPartnerSchema),
     createSalesPartner
 );
+
+// Current user profile update
+router.patch('/profile', authenticate, updateProfile);
+router.put('/profile', authenticate, updateProfile);
 
 // Authenticated Sales Partner routes
 router.post(

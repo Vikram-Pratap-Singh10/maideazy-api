@@ -82,6 +82,8 @@ export interface IUser extends Document {
     deviceType?: string;
     appVersionCode?: number;
     maidId?: string;
+    profile_image?: string;
+    phone?: string;
     wallet_balance?: number;
     createdAt: Date;
     updatedAt: Date;
@@ -234,6 +236,14 @@ const UserSchema = new Schema<IUser, IUserModel>(
             type: Number,
         },
         maidId: {
+            type: String,
+            trim: true,
+        },
+        profile_image: {
+            type: String,
+            trim: true,
+        },
+        phone: {
             type: String,
             trim: true,
         },

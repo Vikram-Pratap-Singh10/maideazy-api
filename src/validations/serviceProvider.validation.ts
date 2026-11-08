@@ -21,6 +21,7 @@ export const registerServiceProviderSchema = z.object({
     expectedSalary: z.number().nonnegative('Expected salary must be a positive number').optional(),
     education: z.string().trim().optional(),
     experience: z.string().trim().optional(),
+    profilePhoto: z.string().trim().optional(),
     registrationFeeId: z.string().optional(),
     planId: z.string().optional(),
 });
@@ -41,6 +42,7 @@ export const adminCreateServiceProviderSchema = z.object({
     education: z.string().trim().optional(),
     experience: z.string().trim().optional(),
     workHours: z.string().trim().optional(),
+    profilePhoto: z.string().trim().optional(),
     status: z.nativeEnum(ProviderApprovalStatus).default(ProviderApprovalStatus.APPROVED).optional(),
     paymentStatus: z.nativeEnum(PaymentStatus).default(PaymentStatus.SUCCESS).optional(),
     isActive: z.boolean().default(true).optional(),
@@ -62,6 +64,7 @@ export const updateServiceProviderSchema = z.object({
     education: z.string().trim().optional(),
     experience: z.string().trim().optional(),
     workHours: z.string().trim().optional(),
+    profilePhoto: z.string().trim().optional(),
     status: z.nativeEnum(ProviderApprovalStatus).optional(),
     paymentStatus: z.nativeEnum(PaymentStatus).optional(),
     isActive: z.boolean().optional(),
