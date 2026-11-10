@@ -47,13 +47,13 @@ export const login = async (req: Request, res: Response, next: NextFunction): Pr
         // Check approval status for Sales Partners
         if (user.userType === UserType.SALES_PERSON || user.salesPartnerDetails) {
             const approvalStatus = user.salesPartnerDetails?.approvalStatus || 'PENDING';
-            if (approvalStatus === 'PENDING') {
-                res.status(403).json({
-                    success: false,
-                    message: 'Your registration application is currently under review by MaidEazy Admin. You will be able to log in once your account is approved.',
-                });
-                return;
-            }
+            // if (approvalStatus === 'PENDING') {
+            //     res.status(403).json({
+            //         success: false,
+            //         message: 'Your registration application is currently under review by MaidEazy Admin. You will be able to log in once your account is approved.',
+            //     });
+            //     return;
+            // }
             if (approvalStatus === 'REJECTED') {
                 const notes = user.salesPartnerDetails?.statusNotes ? ` Reason: ${user.salesPartnerDetails.statusNotes}` : '';
                 res.status(403).json({
