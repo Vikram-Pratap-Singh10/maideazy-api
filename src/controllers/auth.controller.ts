@@ -390,11 +390,16 @@ export const registerSalesPartner = async (req: Request, res: Response, next: Ne
 
         const addressCombined = `${flatNumber}, ${buildingName}${roadName ? `, ${roadName}` : ''}, ${localArea}`;
 
+        const generatedPassword =
+            password && password.trim().length >= 6
+                ? password.trim()
+                : `MaidEazy@${Math.floor(1000 + Math.random() * 9000)}`;
+
         const newSalesPartner = await User.create({
             fullName,
             email: email.toLowerCase(),
             mobileNumber,
-            password: password ? password : undefined,
+            password: generatedPassword,
             role: salesRole._id,
             userType: UserType.SALES_PERSON,
             referenceCode,
@@ -444,6 +449,8 @@ export const registerSalesPartner = async (req: Request, res: Response, next: Ne
                 fullName: newSalesPartner.fullName,
                 email: newSalesPartner.email,
                 mobileNumber: newSalesPartner.mobileNumber,
+                generatedPassword,
+                tempPassword: generatedPassword,
                 approvalStatus: 'PENDING',
                 createdAt: newSalesPartner.createdAt,
             },

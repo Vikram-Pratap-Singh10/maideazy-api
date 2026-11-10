@@ -1,10 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { Types } from 'mongoose';
 import Razorpay from 'razorpay';
-import ServiceProvider, {
-    ProviderApprovalStatus,
-    PaymentStatus,
-} from '../models/service.provider.js';
+import ServiceProvider, { ProviderApprovalStatus, PaymentStatus, } from '../models/service.provider.js';
 import User, { UserType } from '../models/user.js';
 import RegistrationPayment, { PaymentGateway } from '../models/payment.js';
 import RegistrationFee from '../models/registrationFee.js';

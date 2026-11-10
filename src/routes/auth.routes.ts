@@ -1,20 +1,8 @@
 import { Router } from 'express';
-import {
-    login,
-    registerAdmin,
-    registerSalesPartner,
-    getMe,
-    updateProfile,
-    changePassword,
-} from '../controllers/auth.controller.js';
+import { login, registerAdmin, registerSalesPartner, getMe, updateProfile, changePassword, } from '../controllers/auth.controller.js';
 import { authenticate } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
-import {
-    loginSchema,
-    registerAdminSchema,
-    registerSalesPartnerSchema,
-    changePasswordSchema,
-} from '../validations/auth.validation.js';
+import { loginSchema, registerAdminSchema, registerSalesPartnerSchema, changePasswordSchema, } from '../validations/auth.validation.js';
 
 const router = Router();
 

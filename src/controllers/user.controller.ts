@@ -522,11 +522,16 @@ export const createSalesPartner = async (
 
         const addressCombined = `${flatNumber}, ${buildingName}${roadName ? `, ${roadName}` : ''}, ${localArea}`;
 
+        const generatedPassword =
+            password && password.trim().length >= 6
+                ? password.trim()
+                : `MaidEazy@${Math.floor(1000 + Math.random() * 9000)}`;
+
         const newSalesPartner = await User.create({
             fullName,
             email: email.toLowerCase(),
             mobileNumber,
-            password: password || mobileNumber, // Default password to mobile number if not provided
+            password: generatedPassword,
             role: assignedRoleId,
             userType: UserType.SALES_PERSON,
             referenceCode,
@@ -577,7 +582,15 @@ export const createSalesPartner = async (
         res.status(201).json({
             success: true,
             message: 'Sales Partner registered successfully',
-            data: { salesPartner: createdPartner },
+            data: {
+                salesPartner: createdPartner,
+                generatedPassword,
+                tempPassword: generatedPassword,
+                referenceCode,
+                email: email.toLowerCase(),
+                fullName,
+                mobileNumber,
+            },
         });
     } catch (error) {
         next(error);
