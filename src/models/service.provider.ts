@@ -61,6 +61,18 @@ export interface IProvider extends Document {
     experience?: string;
     workHours?: string;
     profilePhoto?: string;
+    emergencyContactName?: string;
+    emergencyContactNumber?: string;
+    emergencyContactRelation?: string;
+    emergencyName?: string;
+    emergencyContactNo?: string;
+    emergencyRelation?: string;
+    agreeAccuracy?: boolean;
+    criminal?: string;
+    criminalDetails?: string;
+    agreePcc?: boolean;
+    agreeVerification?: boolean;
+    agreePrivacy?: boolean;
     status: ProviderApprovalStatus;
     paymentStatus: PaymentStatus;
     registrationFee?: Types.ObjectId;
@@ -177,6 +189,45 @@ const ProviderSchema = new Schema<IProvider>({
     profilePhoto: {
         type: String,
         trim: true,
+    },
+    emergencyContactName: {
+        type: String,
+        trim: true,
+        alias: 'emergencyName',
+    },
+    emergencyContactNumber: {
+        type: String,
+        trim: true,
+        alias: 'emergencyContactNo',
+    },
+    emergencyContactRelation: {
+        type: String,
+        trim: true,
+        alias: 'emergencyRelation',
+    },
+    agreeAccuracy: {
+        type: Boolean,
+        default: false,
+    },
+    criminal: {
+        type: String,
+        enum: ['none', 'disclose'],
+    },
+    criminalDetails: {
+        type: String,
+        trim: true,
+    },
+    agreePcc: {
+        type: Boolean,
+        default: false,
+    },
+    agreeVerification: {
+        type: Boolean,
+        default: false,
+    },
+    agreePrivacy: {
+        type: Boolean,
+        default: false,
     },
     status: {
         type: String,

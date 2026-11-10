@@ -32,6 +32,12 @@ export const registerProvider = async (req: Request, res: Response, next: NextFu
             education,
             experience,
             profilePhoto,
+            agreeAccuracy,
+            criminal,
+            criminalDetails,
+            agreePcc,
+            agreeVerification,
+            agreePrivacy,
         } = req.body;
 
         // Check if mobile number is already registered
@@ -74,6 +80,12 @@ export const registerProvider = async (req: Request, res: Response, next: NextFu
             if (education !== undefined) existing.education = education;
             if (experience !== undefined) existing.experience = experience;
             if (profilePhoto !== undefined) existing.profilePhoto = profilePhoto;
+            if (agreeAccuracy !== undefined) existing.agreeAccuracy = agreeAccuracy;
+            if (criminal !== undefined) existing.criminal = criminal;
+            if (criminalDetails !== undefined) existing.criminalDetails = criminalDetails;
+            if (agreePcc !== undefined) existing.agreePcc = agreePcc;
+            if (agreeVerification !== undefined) existing.agreeVerification = agreeVerification;
+            if (agreePrivacy !== undefined) existing.agreePrivacy = agreePrivacy;
             if (validReferenceCode) existing.referenceCode = validReferenceCode;
             if (salesPersonId) existing.salesPerson = salesPersonId;
             await existing.save();
@@ -201,6 +213,12 @@ export const registerProvider = async (req: Request, res: Response, next: NextFu
             education,
             experience,
             profilePhoto,
+            agreeAccuracy,
+            criminal,
+            criminalDetails,
+            agreePcc,
+            agreeVerification,
+            agreePrivacy,
             status: ProviderApprovalStatus.PENDING,
             paymentStatus: PaymentStatus.PENDING,
             isActive: true,
@@ -459,6 +477,16 @@ export const updateProvider = async (req: AuthRequest, res: Response, next: Next
     try {
         const { id } = req.params;
         const updateData = { ...req.body };
+
+        if (updateData.emergencyName && !updateData.emergencyContactName) {
+            updateData.emergencyContactName = updateData.emergencyName;
+        }
+        if (updateData.emergencyContactNo && !updateData.emergencyContactNumber) {
+            updateData.emergencyContactNumber = updateData.emergencyContactNo;
+        }
+        if (updateData.emergencyRelation && !updateData.emergencyContactRelation) {
+            updateData.emergencyContactRelation = updateData.emergencyRelation;
+        }
 
         if (!id || !Types.ObjectId.isValid(id)) {
             res.status(400).json({
@@ -753,7 +781,7 @@ export const getProviderPublicStatus = async (
         }
 
         const provider = await ServiceProvider.findById(id).select(
-            'fullName mobileNumber city status paymentStatus jobRoles preferredLocations referenceCode profilePhoto createdAt'
+            'fullName mobileNumber city status paymentStatus jobRoles preferredLocations referenceCode profilePhoto agreeAccuracy criminal criminalDetails agreePcc agreeVerification agreePrivacy createdAt'
         );
 
         if (!provider) {
@@ -798,6 +826,18 @@ export const createProviderByAdmin = async (req: AuthRequest, res: Response, nex
             experience,
             workHours,
             profilePhoto,
+            emergencyContactName,
+            emergencyContactNumber,
+            emergencyContactRelation,
+            emergencyName,
+            emergencyContactNo,
+            emergencyRelation,
+            agreeAccuracy,
+            criminal,
+            criminalDetails,
+            agreePcc,
+            agreeVerification,
+            agreePrivacy,
             status = ProviderApprovalStatus.APPROVED,
             paymentStatus = PaymentStatus.SUCCESS,
             isActive = true,
@@ -849,6 +889,18 @@ export const createProviderByAdmin = async (req: AuthRequest, res: Response, nex
             experience,
             workHours,
             profilePhoto,
+            emergencyContactName,
+            emergencyContactNumber,
+            emergencyContactRelation,
+            emergencyName,
+            emergencyContactNo,
+            emergencyRelation,
+            agreeAccuracy,
+            criminal,
+            criminalDetails,
+            agreePcc,
+            agreeVerification,
+            agreePrivacy,
             referenceCode: validReferenceCode,
             salesPerson: salesPersonId,
             status,
