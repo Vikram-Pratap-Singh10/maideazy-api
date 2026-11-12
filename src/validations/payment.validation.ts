@@ -15,8 +15,10 @@ export const verifyPaymentSchema = z.object({
 
 export const paymentQuerySchema = z.object({
     page: z.coerce.number().int().positive().default(1).optional(),
-    limit: z.coerce.number().int().positive().max(100).default(10).optional(),
+    limit: z.coerce.number().int().positive().max(10000).default(10).optional(),
     status: z.enum(['PENDING', 'SUCCESS', 'FAILED', 'REFUNDED']).optional(),
     providerId: z.string().optional(),
+    startDate: z.string().optional(),
+    endDate: z.string().optional(),
 });
 

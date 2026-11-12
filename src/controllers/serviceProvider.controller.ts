@@ -29,6 +29,13 @@ export const registerProvider = async (req: Request, res: Response, next: NextFu
             education,
             experience,
             profilePhoto,
+            aadhaarNumber,
+            aadhaarCardNumber,
+            aadhaarDocument,
+            panCardNumber,
+            panNumber,
+            panCardDocument,
+            panCardImage,
             agreeAccuracy,
             criminal,
             criminalDetails,
@@ -36,6 +43,11 @@ export const registerProvider = async (req: Request, res: Response, next: NextFu
             agreeVerification,
             agreePrivacy,
         } = req.body;
+
+        const resolvedAadhaarNumber = (aadhaarNumber || aadhaarCardNumber)?.trim();
+        const resolvedAadhaarDocument = aadhaarDocument?.trim();
+        const resolvedPanCardNumber = (panCardNumber || panNumber)?.trim().toUpperCase();
+        const resolvedPanCardDocument = (panCardDocument || panCardImage)?.trim();
 
         // Check if mobile number is already registered
         const existing = await ServiceProvider.findOne({ mobileNumber });
@@ -77,6 +89,16 @@ export const registerProvider = async (req: Request, res: Response, next: NextFu
             if (education !== undefined) existing.education = education;
             if (experience !== undefined) existing.experience = experience;
             if (profilePhoto !== undefined) existing.profilePhoto = profilePhoto;
+            if (aadhaarNumber !== undefined || aadhaarCardNumber !== undefined) {
+                existing.aadhaarNumber = aadhaarNumber || aadhaarCardNumber;
+            }
+            if (aadhaarDocument !== undefined) existing.aadhaarDocument = aadhaarDocument;
+            if (panCardNumber !== undefined || panNumber !== undefined) {
+                existing.panCardNumber = panCardNumber || panNumber;
+            }
+            if (panCardDocument !== undefined || panCardImage !== undefined) {
+                existing.panCardDocument = panCardDocument || panCardImage;
+            }
             if (agreeAccuracy !== undefined) existing.agreeAccuracy = agreeAccuracy;
             if (criminal !== undefined) existing.criminal = criminal;
             if (criminalDetails !== undefined) existing.criminalDetails = criminalDetails;
@@ -210,6 +232,10 @@ export const registerProvider = async (req: Request, res: Response, next: NextFu
             education,
             experience,
             profilePhoto,
+            aadhaarNumber: resolvedAadhaarNumber,
+            aadhaarDocument: resolvedAadhaarDocument,
+            panCardNumber: resolvedPanCardNumber,
+            panCardDocument: resolvedPanCardDocument,
             agreeAccuracy,
             criminal,
             criminalDetails,
@@ -333,7 +359,7 @@ export const getAllProviders = async (req: AuthRequest, res: Response, next: Nex
         } = req.query as any;
 
         const pageNum = Math.max(1, parseInt(String(page), 10) || 1);
-        const limitNum = Math.min(100, Math.max(1, parseInt(String(limit), 10) || 10));
+        const limitNum = Math.min(10000, Math.max(1, parseInt(String(limit), 10) || 10));
         const skip = (pageNum - 1) * limitNum;
 
         const filter: Record<string, any> = {};
@@ -476,6 +502,21 @@ export const updateProvider = async (req: AuthRequest, res: Response, next: Next
         }
         if (updateData.emergencyRelation && !updateData.emergencyContactRelation) {
             updateData.emergencyContactRelation = updateData.emergencyRelation;
+        }
+        if (updateData.panNumber && !updateData.panCardNumber) {
+            updateData.panCardNumber = updateData.panNumber;
+        }
+        if (updateData.panCardImage && !updateData.panCardDocument) {
+            updateData.panCardDocument = updateData.panCardImage;
+        }
+        if (updateData.panCardNumber) {
+            updateData.panCardNumber = updateData.panCardNumber.trim().toUpperCase();
+        }
+        if (updateData.aadhaarCardNumber && !updateData.aadhaarNumber) {
+            updateData.aadhaarNumber = updateData.aadhaarCardNumber;
+        }
+        if (updateData.aadhaarNumber) {
+            updateData.aadhaarNumber = updateData.aadhaarNumber.trim();
         }
 
         if (!id || !Types.ObjectId.isValid(id)) {
@@ -825,6 +866,13 @@ export const createProviderByAdmin = async (req: AuthRequest, res: Response, nex
             experience,
             workHours,
             profilePhoto,
+            aadhaarNumber,
+            aadhaarCardNumber,
+            aadhaarDocument,
+            panCardNumber,
+            panNumber,
+            panCardDocument,
+            panCardImage,
             emergencyContactName,
             emergencyContactNumber,
             emergencyContactRelation,
@@ -841,6 +889,11 @@ export const createProviderByAdmin = async (req: AuthRequest, res: Response, nex
             paymentStatus = PaymentStatus.SUCCESS,
             isActive = true,
         } = req.body;
+
+        const resolvedAadhaarNumber = (aadhaarNumber || aadhaarCardNumber)?.trim();
+        const resolvedAadhaarDocument = aadhaarDocument?.trim();
+        const resolvedPanCardNumber = (panCardNumber || panNumber)?.trim().toUpperCase();
+        const resolvedPanCardDocument = (panCardDocument || panCardImage)?.trim();
 
         const existing = await ServiceProvider.findOne({ mobileNumber });
         if (existing) {
@@ -888,6 +941,10 @@ export const createProviderByAdmin = async (req: AuthRequest, res: Response, nex
             experience,
             workHours,
             profilePhoto,
+            aadhaarNumber: resolvedAadhaarNumber,
+            aadhaarDocument: resolvedAadhaarDocument,
+            panCardNumber: resolvedPanCardNumber,
+            panCardDocument: resolvedPanCardDocument,
             emergencyContactName,
             emergencyContactNumber,
             emergencyContactRelation,

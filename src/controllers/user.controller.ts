@@ -114,7 +114,7 @@ export const getAllTeamMembers = async (req: AuthRequest, res: Response, next: N
         } = req.query as any;
 
         const pageNum = Math.max(1, parseInt(String(page), 10) || 1);
-        const limitNum = Math.min(100, Math.max(1, parseInt(String(limit), 10) || 10));
+        const limitNum = Math.min(10000, Math.max(1, parseInt(String(limit), 10) || 10));
         const skip = (pageNum - 1) * limitNum;
 
         const filter: Record<string, any> = {};
@@ -615,7 +615,7 @@ export const getAllSalesPartners = async (
         } = req.query as any;
 
         const pageNum = Math.max(1, parseInt(String(page), 10) || 1);
-        const limitNum = Math.min(100, Math.max(1, parseInt(String(limit), 10) || 10));
+        const limitNum = Math.min(10000, Math.max(1, parseInt(String(limit), 10) || 10));
         const skip = (pageNum - 1) * limitNum;
 
         const filter: Record<string, any> = {
@@ -654,26 +654,111 @@ export const getAllSalesPartners = async (
             User.countDocuments(filter),
         ]);
 
-        // Aggregate registered providers count for each partner's referenceCode
+        // Aggregate performance metrics (total earnings, onboardings, and Regular vs Premium breakdown)
         const referenceCodes = partners
             .map((p) => p.referenceCode)
             .filter((c): c is string => Boolean(c));
+        const partnerIds = partners.map((p) => p._id);
 
-        let providerCountMap: Record<string, number> = {};
-        if (referenceCodes.length > 0) {
+        interface SalesPartnerPerf {
+            totalOnboardings: number;
+            completedOnboardings: number;
+            pendingOnboardings: number;
+            regularPlanSales: number;
+            premiumPlanSales: number;
+        }
+
+        const perfMap: Record<string, SalesPartnerPerf> = {};
+
+        if (referenceCodes.length > 0 || partnerIds.length > 0) {
+            const matchConditions: any[] = [];
+            if (referenceCodes.length > 0) matchConditions.push({ referenceCode: { $in: referenceCodes } });
+            if (partnerIds.length > 0) matchConditions.push({ salesPerson: { $in: partnerIds } });
+
             const stats = await ServiceProvider.aggregate([
-                { $match: { referenceCode: { $in: referenceCodes } } },
-                { $group: { _id: '$referenceCode', count: { $sum: 1 } } },
+                { $match: { $or: matchConditions } },
+                {
+                    $lookup: {
+                        from: 'registrationfees',
+                        localField: 'registrationFee',
+                        foreignField: '_id',
+                        as: 'planInfo',
+                    },
+                },
+                {
+                    $unwind: {
+                        path: '$planInfo',
+                        preserveNullAndEmptyArrays: true,
+                    },
+                },
+                {
+                    $project: {
+                        referenceCode: 1,
+                        salesPerson: 1,
+                        paymentStatus: 1,
+                        planType: { $ifNull: ['$planInfo.planType', 'REGULAR'] },
+                        planTitle: { $ifNull: ['$planInfo.title', 'Regular Plan'] },
+                    },
+                },
             ]);
-            stats.forEach((s) => {
-                if (s._id) providerCountMap[s._id] = s.count;
+
+            stats.forEach((item) => {
+                const isPaid = item.paymentStatus === 'SUCCESS';
+                const isPremium =
+                    String(item.planType).toUpperCase() === 'PREMIUM' ||
+                    /premium/i.test(String(item.planTitle));
+
+                const keys: string[] = [];
+                if (item.referenceCode) keys.push(item.referenceCode);
+                if (item.salesPerson) keys.push(String(item.salesPerson));
+
+                keys.forEach((key) => {
+                    if (!perfMap[key]) {
+                        perfMap[key] = {
+                            totalOnboardings: 0,
+                            completedOnboardings: 0,
+                            pendingOnboardings: 0,
+                            regularPlanSales: 0,
+                            premiumPlanSales: 0,
+                        };
+                    }
+                    perfMap[key].totalOnboardings += 1;
+                    if (isPaid) {
+                        perfMap[key].completedOnboardings += 1;
+                        if (isPremium) {
+                            perfMap[key].premiumPlanSales += 1;
+                        } else {
+                            perfMap[key].regularPlanSales += 1;
+                        }
+                    } else {
+                        perfMap[key].pendingOnboardings += 1;
+                    }
+                });
             });
         }
 
-        const partnersWithStats = partners.map((p) => ({
-            ...p.toObject(),
-            registeredProvidersCount: p.referenceCode ? providerCountMap[p.referenceCode] || 0 : 0,
-        }));
+        const partnersWithStats = partners.map((p) => {
+            const perf =
+                (p.referenceCode && perfMap[p.referenceCode]) ||
+                perfMap[String(p._id)] || {
+                    totalOnboardings: 0,
+                    completedOnboardings: 0,
+                    pendingOnboardings: 0,
+                    regularPlanSales: 0,
+                    premiumPlanSales: 0,
+                };
+
+            return {
+                ...p.toObject(),
+                totalEarnings: p.wallet_balance || 0,
+                registeredProvidersCount: perf.totalOnboardings,
+                totalOnboardings: perf.totalOnboardings,
+                completedOnboardings: perf.completedOnboardings,
+                pendingOnboardings: perf.pendingOnboardings,
+                regularPlanSales: perf.regularPlanSales,
+                premiumPlanSales: perf.premiumPlanSales,
+            };
+        });
 
         res.status(200).json({
             success: true,
@@ -718,22 +803,54 @@ export const getSalesPartnerById = async (
             return;
         }
 
-        let registeredProviders: any[] = [];
+        const orFilters: any[] = [{ salesPerson: partner._id }];
         if (partner.referenceCode) {
-            registeredProviders = await ServiceProvider.find({
-                referenceCode: partner.referenceCode,
-            })
-                .select('fullName mobileNumber status paymentStatus createdAt jobRoles city')
-                .sort({ createdAt: -1 })
-                .limit(50);
+            orFilters.push({ referenceCode: partner.referenceCode });
         }
+
+        const registeredProviders = await ServiceProvider.find({ $or: orFilters })
+            .select('fullName mobileNumber status paymentStatus registrationFee createdAt jobRoles city')
+            .populate('registrationFee', 'title planType amount salesPersonCommission')
+            .sort({ createdAt: -1 })
+            .limit(100);
+
+        const performance = {
+            totalEarnings: partner.wallet_balance || 0,
+            totalOnboardings: registeredProviders.length,
+            completedOnboardings: 0,
+            pendingOnboardings: 0,
+            regularPlanSales: 0,
+            premiumPlanSales: 0,
+        };
+
+        registeredProviders.forEach((sp) => {
+            const isPaid = sp.paymentStatus === 'SUCCESS';
+            const fee: any = sp.registrationFee;
+            const isPremium =
+                String(fee?.planType).toUpperCase() === 'PREMIUM' ||
+                /premium/i.test(String(fee?.title));
+            if (isPaid) {
+                performance.completedOnboardings += 1;
+                if (isPremium) {
+                    performance.premiumPlanSales += 1;
+                } else {
+                    performance.regularPlanSales += 1;
+                }
+            } else {
+                performance.pendingOnboardings += 1;
+            }
+        });
 
         res.status(200).json({
             success: true,
             data: {
-                salesPartner: partner,
+                salesPartner: {
+                    ...partner.toObject(),
+                    ...performance,
+                },
+                performance,
                 registeredProviders,
-                totalProviders: registeredProviders.length,
+                totalProviders: performance.totalOnboardings,
             },
         });
     } catch (error) {

@@ -141,7 +141,7 @@ export const updateSalesPartnerSchema = z.object({
 
 export const teamMemberQuerySchema = z.object({
     page: z.coerce.number().int().positive().default(1).optional(),
-    limit: z.coerce.number().int().positive().max(100).default(10).optional(),
+    limit: z.coerce.number().int().positive().max(10000).default(10).optional(),
     search: z.string().trim().optional(),
     roleId: z.string().optional(),
     userType: z.string().optional(),

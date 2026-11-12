@@ -358,15 +358,30 @@ export const getAllRegistrationPayments = async (
     next: NextFunction
 ): Promise<void> => {
     try {
-        const { page = 1, limit = 10, status, providerId } = req.query as any;
+        const { page = 1, limit = 10, status, providerId, startDate, endDate } = req.query as any;
 
         const pageNum = Math.max(1, parseInt(String(page), 10) || 1);
-        const limitNum = Math.min(100, Math.max(1, parseInt(String(limit), 10) || 10));
+        const limitNum = Math.min(10000, Math.max(1, parseInt(String(limit), 10) || 10));
         const skip = (pageNum - 1) * limitNum;
 
         const filter: Record<string, any> = {};
         if (status) filter.status = status;
         if (providerId && Types.ObjectId.isValid(providerId)) filter.providerId = new Types.ObjectId(providerId);
+
+        if (startDate || endDate) {
+            const dateFilter: Record<string, any> = {};
+            if (startDate) {
+                const s = new Date(startDate);
+                s.setHours(0, 0, 0, 0);
+                dateFilter.$gte = s;
+            }
+            if (endDate) {
+                const e = new Date(endDate);
+                e.setHours(23, 59, 59, 999);
+                dateFilter.$lte = e;
+            }
+            filter.createdAt = dateFilter;
+        }
 
         const [payments, total] = await Promise.all([
             RegistrationPayment.find(filter)

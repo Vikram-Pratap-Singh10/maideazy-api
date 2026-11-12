@@ -61,6 +61,10 @@ export interface IProvider extends Document {
     experience?: string;
     workHours?: string;
     profilePhoto?: string;
+    aadhaarNumber?: string;
+    aadhaarDocument?: string;
+    panCardNumber?: string;
+    panCardDocument?: string;
     emergencyContactName?: string;
     emergencyContactNumber?: string;
     emergencyContactRelation?: string;
@@ -189,6 +193,23 @@ const ProviderSchema = new Schema<IProvider>({
         type: String
     },
     profilePhoto: {
+        type: String,
+        trim: true,
+    },
+    aadhaarNumber: {
+        type: String,
+        trim: true,
+    },
+    aadhaarDocument: {
+        type: String,
+        trim: true,
+    },
+    panCardNumber: {
+        type: String,
+        trim: true,
+        uppercase: true,
+    },
+    panCardDocument: {
         type: String,
         trim: true,
     },
