@@ -52,11 +52,8 @@ export const getDashboardStats = async (
                 User.findById(userId).select('wallet_balance referenceCode fullName email'),
             ]);
 
-            // Each referral earns 50 INR in wallet. If wallet_balance wasn't set, default to totalProviders * 50
-            const earning =
-                freshUser?.wallet_balance !== undefined && freshUser.wallet_balance > 0
-                    ? freshUser.wallet_balance
-                    : totalProviders * 50;
+            // Earning reflects actual wallet_balance credited from successful paid registrations
+            const earning = freshUser?.wallet_balance ?? 0;
 
             res.status(200).json({
                 success: true,

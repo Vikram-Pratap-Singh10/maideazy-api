@@ -77,6 +77,8 @@ export interface IProvider extends Document {
     paymentStatus: PaymentStatus;
     registrationFee?: Types.ObjectId;
     extraRoleCharge?: number;
+    commissionCredited?: boolean;
+    commissionAmount?: number;
     isActive: boolean;
     createdAt: Date;
     updatedAt: Date;
@@ -246,6 +248,16 @@ const ProviderSchema = new Schema<IProvider>({
         ref: 'RegistrationFee',
     },
     extraRoleCharge: {
+        type: Number,
+        default: 0,
+        min: 0,
+    },
+    commissionCredited: {
+        type: Boolean,
+        default: false,
+        index: true,
+    },
+    commissionAmount: {
         type: Number,
         default: 0,
         min: 0,

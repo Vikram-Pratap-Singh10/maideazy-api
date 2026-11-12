@@ -6,6 +6,7 @@ import RegistrationPayment, { PaymentStatus, PaymentGateway } from '../models/pa
 import ServiceProvider from '../models/service.provider.js';
 import RegistrationFee from '../models/registrationFee.js';
 import { AuthRequest } from '../middleware/auth.js';
+import { creditSalesPersonCommission } from './serviceProvider.controller.js';
 
 const getRazorpayInstance = (): Razorpay => {
     const key_id = process.env.RAZORPAY_KEY_ID;
@@ -123,6 +124,7 @@ export const createRegistrationOrder = async (req: Request, res: Response, next:
             },
         });
     } catch (error) {
+        console.log(error)
         next(error);
     }
 };
@@ -130,11 +132,7 @@ export const createRegistrationOrder = async (req: Request, res: Response, next:
 /**
  * 2. Verify Razorpay Payment Signature and update provider paymentStatus to SUCCESS
  */
-export const verifyPayment = async (
-    req: Request,
-    res: Response,
-    next: NextFunction
-): Promise<void> => {
+export const verifyPayment = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
         const { providerId, razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
 
@@ -196,6 +194,9 @@ export const verifyPayment = async (
         // Update provider paymentStatus to SUCCESS
         provider.paymentStatus = PaymentStatus.SUCCESS;
         await provider.save();
+
+        // Credit sales person commission to wallet if registered with a reference code
+        await creditSalesPersonCommission(provider._id);
 
         res.status(200).json({
             success: true,
@@ -288,6 +289,9 @@ export const razorpayWebhook = async (req: Request, res: Response): Promise<any>
                     provider.paymentStatus = PaymentStatus.SUCCESS;
                     await provider.save();
                     console.log(`Provider ${provider.fullName} (${provider._id}) paymentStatus updated to SUCCESS via Webhook`);
+
+                    // Credit sales person commission to wallet if registered with a reference code
+                    await creditSalesPersonCommission(provider._id);
                 }
             } else {
                 console.log(`Registration transaction for order ${orderId} not found in database`);

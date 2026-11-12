@@ -156,25 +156,9 @@ export const createOrUpdateActiveFee = async (
  * Admin: Create a new Registration Fee Plan
  * Multiple plans (Regular, Premium, etc.) can be created and kept active simultaneously.
  */
-export const createRegistrationFee = async (
-    req: AuthRequest,
-    res: Response,
-    next: NextFunction
-): Promise<void> => {
+export const createRegistrationFee = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-        const {
-            title,
-            planType = 'REGULAR',
-            amount,
-            originalAmount,
-            currency = 'INR',
-            salesPersonCommission = 50,
-            features = [],
-            description,
-            validityInDays = 365,
-            isActive = true,
-            isDefault = false,
-        } = req.body;
+        const { title, planType = 'REGULAR', amount, originalAmount, currency = 'INR', salesPersonCommission = 50, features = [], description, validityInDays = 365, isActive = true, isDefault = false, } = req.body;
 
         const userId = req.user?._id;
 
@@ -212,11 +196,7 @@ export const createRegistrationFee = async (
 /**
  * Admin: Get all Registration Fee configurations
  */
-export const getAllRegistrationFees = async (
-    req: AuthRequest,
-    res: Response,
-    next: NextFunction
-): Promise<void> => {
+export const getAllRegistrationFees = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
         let fees = await RegistrationFee.find()
             .sort({ isDefault: -1, createdAt: -1 })

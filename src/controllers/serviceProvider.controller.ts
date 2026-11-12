@@ -242,16 +242,9 @@ export const registerProvider = async (req: Request, res: Response, next: NextFu
         provider.extraRoleCharge = extraRoleFee;
         await provider.save();
 
-        let commissionAmount = 50;
-        if (targetFeePlan && typeof targetFeePlan.salesPersonCommission === 'number') {
-            commissionAmount = targetFeePlan.salesPersonCommission;
-        }
-
-        // Credit referral earning to sales person wallet
-        if (salesPersonId) {
-            await User.findByIdAndUpdate(salesPersonId, {
-                $inc: { wallet_balance: commissionAmount },
-            });
+        // Note: Sales person commission is credited to wallet ONLY AFTER provider registration payment succeeds
+        if (provider.paymentStatus === PaymentStatus.SUCCESS) {
+            await creditSalesPersonCommission(provider._id);
         }
 
         // Automatically create Razorpay order for registration fee if keys configured
@@ -544,6 +537,10 @@ export const updateProvider = async (req: AuthRequest, res: Response, next: Next
             runValidators: true,
         }).populate('salesPerson', 'fullName email mobileNumber referenceCode');
 
+        if (updated && updated.paymentStatus === PaymentStatus.SUCCESS && !updated.commissionCredited) {
+            await creditSalesPersonCommission(updated._id);
+        }
+
         res.status(200).json({
             success: true,
             message: 'Service provider updated successfully',
@@ -630,6 +627,11 @@ export const updateProviderPaymentStatus = async (
                 message: 'Service provider not found',
             });
             return;
+        }
+
+        // If paymentStatus became SUCCESS, credit sales person commission if not yet credited
+        if (paymentStatus === PaymentStatus.SUCCESS) {
+            await creditSalesPersonCommission(provider._id);
         }
 
         res.status(200).json({
@@ -905,21 +907,19 @@ export const createProviderByAdmin = async (req: AuthRequest, res: Response, nex
             isActive,
         });
 
-        // Determine referral incentive amount from selected or default registration fee plan
-        let commissionAmount = 50;
+        // Attach registration fee plan if provided or default
         const targetFeePlan = req.body.registrationFeeId
             ? await RegistrationFee.findById(req.body.registrationFeeId)
             : await RegistrationFee.findOne({ isActive: true }).sort({ isDefault: -1, updatedAt: -1 });
 
-        if (targetFeePlan && typeof targetFeePlan.salesPersonCommission === 'number') {
-            commissionAmount = targetFeePlan.salesPersonCommission;
+        if (targetFeePlan) {
+            provider.registrationFee = targetFeePlan._id;
+            await provider.save();
         }
 
-        // Credit referral incentive to sales person wallet
-        if (salesPersonId) {
-            await User.findByIdAndUpdate(salesPersonId, {
-                $inc: { wallet_balance: commissionAmount },
-            });
+        // Credit referral incentive to sales person wallet ONLY if paymentStatus is SUCCESS
+        if (paymentStatus === PaymentStatus.SUCCESS) {
+            await creditSalesPersonCommission(provider._id);
         }
 
         const created = await ServiceProvider.findById(provider._id).populate(
@@ -934,5 +934,77 @@ export const createProviderByAdmin = async (req: AuthRequest, res: Response, nex
         });
     } catch (error) {
         next(error);
+    }
+};
+
+/**
+ * Credit commission to sales person's wallet upon successful provider registration payment
+ */
+export const creditSalesPersonCommission = async (
+    providerId: Types.ObjectId | string
+): Promise<{ success: boolean; commissionAmount?: number; salesPersonId?: Types.ObjectId }> => {
+    try {
+        const provider = await ServiceProvider.findById(providerId);
+        if (!provider) {
+            return { success: false };
+        }
+
+        // Must be paid and not already credited
+        if (provider.paymentStatus !== PaymentStatus.SUCCESS || provider.commissionCredited) {
+            return { success: false };
+        }
+
+        // Resolve sales person
+        let salesPersonId: Types.ObjectId | undefined = provider.salesPerson;
+        if (!salesPersonId && provider.referenceCode) {
+            const formattedCode = provider.referenceCode.trim().toUpperCase();
+            const salesPerson = await User.findOne({
+                referenceCode: formattedCode,
+                isActive: true,
+            });
+            if (salesPerson) {
+                salesPersonId = salesPerson._id;
+                provider.salesPerson = salesPerson._id;
+            }
+        }
+
+        if (!salesPersonId) {
+            return { success: false };
+        }
+
+        // Fetch commission amount from provider's selected registrationFee plan or default plan
+        let commissionAmount = 50;
+        let targetFeePlan = null;
+        if (provider.registrationFee) {
+            targetFeePlan = await RegistrationFee.findById(provider.registrationFee);
+        }
+        if (!targetFeePlan) {
+            targetFeePlan = await RegistrationFee.findOne({ isActive: true }).sort({ isDefault: -1, updatedAt: -1 });
+        }
+
+        if (targetFeePlan && typeof targetFeePlan.salesPersonCommission === 'number' && targetFeePlan.salesPersonCommission >= 0) {
+            commissionAmount = targetFeePlan.salesPersonCommission;
+        }
+
+        // Credit referral commission to sales person's wallet_balance
+        const updatedUser = await User.findByIdAndUpdate(
+            salesPersonId,
+            { $inc: { wallet_balance: commissionAmount } },
+            { new: true }
+        );
+
+        // Mark as credited on provider to prevent duplicate payouts
+        provider.commissionCredited = true;
+        provider.commissionAmount = commissionAmount;
+        await provider.save();
+
+        console.log(
+            `[Wallet Credited] Successfully credited ₹${commissionAmount} to Sales Person (${updatedUser?.fullName || salesPersonId}, Balance: ₹${updatedUser?.wallet_balance}) for Provider ${provider.fullName} (${provider._id})`
+        );
+
+        return { success: true, commissionAmount, salesPersonId };
+    } catch (err) {
+        console.error('Error crediting sales person commission:', err);
+        return { success: false };
     }
 };
