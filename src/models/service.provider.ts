@@ -51,6 +51,9 @@ export interface IProvider extends Document {
     dateOfBirth: Date;
     gender: Gender;
     residentialAddress: string;
+    permanentAddress?: string;
+    currentAddress?: string;
+    isCurrentSameAsPermanent?: boolean;
     city: string;
     pinCode: string;
     jobRoles: string[];
@@ -143,6 +146,18 @@ const ProviderSchema = new Schema<IProvider>({
         type: String,
         required: [true, 'Residential address is required'],
         trim: true,
+    },
+    permanentAddress: {
+        type: String,
+        trim: true,
+    },
+    currentAddress: {
+        type: String,
+        trim: true,
+    },
+    isCurrentSameAsPermanent: {
+        type: Boolean,
+        default: true,
     },
     city: {
         type: String,

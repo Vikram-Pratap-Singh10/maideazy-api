@@ -20,6 +20,9 @@ export const registerProvider = async (req: Request, res: Response, next: NextFu
             dateOfBirth,
             gender,
             residentialAddress,
+            permanentAddress,
+            currentAddress,
+            isCurrentSameAsPermanent,
             city,
             pinCode,
             jobRoles,
@@ -80,6 +83,9 @@ export const registerProvider = async (req: Request, res: Response, next: NextFu
             if (dateOfBirth) existing.dateOfBirth = dateOfBirth;
             if (gender) existing.gender = gender;
             if (residentialAddress) existing.residentialAddress = residentialAddress;
+            if (permanentAddress !== undefined) existing.permanentAddress = permanentAddress;
+            if (currentAddress !== undefined) existing.currentAddress = currentAddress;
+            if (isCurrentSameAsPermanent !== undefined) existing.isCurrentSameAsPermanent = isCurrentSameAsPermanent;
             if (city) existing.city = city;
             if (pinCode) existing.pinCode = pinCode;
             if (jobRoles && jobRoles.length > 0) existing.jobRoles = jobRoles;
@@ -223,6 +229,9 @@ export const registerProvider = async (req: Request, res: Response, next: NextFu
             dateOfBirth,
             gender,
             residentialAddress,
+            permanentAddress,
+            currentAddress,
+            isCurrentSameAsPermanent,
             city,
             pinCode,
             jobRoles,
@@ -856,6 +865,9 @@ export const createProviderByAdmin = async (req: AuthRequest, res: Response, nex
             dateOfBirth,
             gender,
             residentialAddress,
+            permanentAddress,
+            currentAddress,
+            isCurrentSameAsPermanent,
             city,
             pinCode,
             jobRoles,
@@ -931,6 +943,9 @@ export const createProviderByAdmin = async (req: AuthRequest, res: Response, nex
             dateOfBirth,
             gender,
             residentialAddress,
+            permanentAddress,
+            currentAddress,
+            isCurrentSameAsPermanent,
             city,
             pinCode,
             jobRoles,
