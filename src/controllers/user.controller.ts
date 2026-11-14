@@ -395,11 +395,7 @@ export const deleteTeamMember = async (
 /**
  * Public or authenticated check: Verify reference code during service provider registration
  */
-export const verifyReferenceCode = async (
-    req: AuthRequest,
-    res: Response,
-    next: NextFunction
-): Promise<void> => {
+export const verifyReferenceCode = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
         const { code } = req.params;
 
@@ -441,11 +437,7 @@ export const verifyReferenceCode = async (
 /**
  * Admin creates a Sales Partner with the full MaidEazy registration form
  */
-export const createSalesPartner = async (
-    req: AuthRequest,
-    res: Response,
-    next: NextFunction
-): Promise<void> => {
+export const createSalesPartner = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
         const {
             fullName,
@@ -600,19 +592,9 @@ export const createSalesPartner = async (
 /**
  * Get all Sales Partners with stats, search, and pagination
  */
-export const getAllSalesPartners = async (
-    req: AuthRequest,
-    res: Response,
-    next: NextFunction
-): Promise<void> => {
+export const getAllSalesPartners = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-        const {
-            page = 1,
-            limit = 10,
-            search,
-            approvalStatus,
-            isActive,
-        } = req.query as any;
+        const { page = 1, limit = 10, search, approvalStatus, isActive, } = req.query as any;
 
         const pageNum = Math.max(1, parseInt(String(page), 10) || 1);
         const limitNum = Math.min(10000, Math.max(1, parseInt(String(limit), 10) || 10));
@@ -780,11 +762,7 @@ export const getAllSalesPartners = async (
 /**
  * Get single Sales Partner by ID with full details
  */
-export const getSalesPartnerById = async (
-    req: AuthRequest,
-    res: Response,
-    next: NextFunction
-): Promise<void> => {
+export const getSalesPartnerById = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
         const { id } = req.params;
 
@@ -861,11 +839,7 @@ export const getSalesPartnerById = async (
 /**
  * Update Sales Partner details
  */
-export const updateSalesPartner = async (
-    req: AuthRequest,
-    res: Response,
-    next: NextFunction
-): Promise<void> => {
+export const updateSalesPartner = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
         const { id } = req.params;
 
@@ -884,6 +858,8 @@ export const updateSalesPartner = async (
             fullName,
             mobileNumber,
             email,
+            password,
+            referenceCode,
             isActive,
             approvalStatus,
             statusNotes,
@@ -913,10 +889,41 @@ export const updateSalesPartner = async (
             bankDocument,
         } = req.body;
 
-        if (fullName !== undefined) partner.fullName = fullName;
-        if (email !== undefined) partner.email = email.toLowerCase();
-        if (mobileNumber !== undefined) partner.mobileNumber = mobileNumber;
-        if (isActive !== undefined) partner.isActive = isActive;
+        if (fullName !== undefined) partner.fullName = fullName.trim();
+
+        if (email !== undefined && email.trim() !== '' && email.toLowerCase() !== partner.email?.toLowerCase()) {
+            const existingEmail = await User.findOne({ email: email.toLowerCase(), _id: { $ne: id } });
+            if (existingEmail) {
+                res.status(409).json({ success: false, message: 'Email address is already in use by another user' });
+                return;
+            }
+            partner.email = email.toLowerCase().trim();
+        }
+
+        if (mobileNumber !== undefined && mobileNumber.trim() !== '' && mobileNumber !== partner.mobileNumber) {
+            const existingMobile = await User.findOne({ mobileNumber, _id: { $ne: id } });
+            if (existingMobile) {
+                res.status(409).json({ success: false, message: 'Mobile number is already in use by another user' });
+                return;
+            }
+            partner.mobileNumber = mobileNumber.trim();
+        }
+
+        if (referenceCode !== undefined && referenceCode.trim() !== '' && referenceCode.trim().toUpperCase() !== partner.referenceCode) {
+            const formattedRef = referenceCode.trim().toUpperCase();
+            const existingRef = await User.findOne({ referenceCode: formattedRef, _id: { $ne: id } });
+            if (existingRef) {
+                res.status(409).json({ success: false, message: 'Reference code is already assigned to another partner' });
+                return;
+            }
+            partner.referenceCode = formattedRef;
+        }
+
+        if (password && password.trim().length >= 6) {
+            partner.password = password.trim();
+        }
+
+        if (isActive !== undefined) partner.isActive = Boolean(isActive);
 
         if (!partner.salesPartnerDetails) {
             partner.salesPartnerDetails = {};
@@ -929,15 +936,18 @@ export const updateSalesPartner = async (
         if (landmark !== undefined) partner.salesPartnerDetails.landmark = landmark;
         if (city !== undefined) {
             partner.salesPartnerDetails.city = city;
-            if (partner.location) partner.location.city = city;
+            if (!partner.location) partner.location = {};
+            partner.location.city = city;
         }
         if (state !== undefined) {
             partner.salesPartnerDetails.state = state;
-            if (partner.location) partner.location.state = state;
+            if (!partner.location) partner.location = {};
+            partner.location.state = state;
         }
         if (pinCode !== undefined) {
             partner.salesPartnerDetails.pinCode = pinCode;
-            if (partner.location) partner.location.pinCode = pinCode;
+            if (!partner.location) partner.location = {};
+            partner.location.pinCode = pinCode;
         }
         if (hasSalesExperience !== undefined) partner.salesPartnerDetails.hasSalesExperience = Boolean(hasSalesExperience);
         if (previousExperience !== undefined) partner.salesPartnerDetails.previousExperience = previousExperience;
@@ -959,7 +969,12 @@ export const updateSalesPartner = async (
         if (branchName !== undefined) partner.salesPartnerDetails.branchName = branchName;
         if (bankDocumentType !== undefined) partner.salesPartnerDetails.bankDocumentType = bankDocumentType;
         if (bankDocument !== undefined) partner.salesPartnerDetails.bankDocument = bankDocument;
-        if (approvalStatus !== undefined) partner.salesPartnerDetails.approvalStatus = approvalStatus;
+        if (approvalStatus !== undefined) {
+            partner.salesPartnerDetails.approvalStatus = approvalStatus;
+            if (approvalStatus === 'APPROVED' && isActive === undefined && !partner.isActive) {
+                partner.isActive = true;
+            }
+        }
         if (statusNotes !== undefined) partner.salesPartnerDetails.statusNotes = statusNotes;
 
         await partner.save();
@@ -982,11 +997,7 @@ export const updateSalesPartner = async (
 /**
  * Delete Sales Partner
  */
-export const deleteSalesPartner = async (
-    req: AuthRequest,
-    res: Response,
-    next: NextFunction
-): Promise<void> => {
+export const deleteSalesPartner = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
         const { id } = req.params;
 
@@ -1029,11 +1040,7 @@ export const deleteSalesPartner = async (
  * Update Sales Partner status (APPROVED / REJECTED / PENDING)
  * When approving, automatically sets or verifies login password so the partner can log in.
  */
-export const updateSalesPartnerStatus = async (
-    req: AuthRequest,
-    res: Response,
-    next: NextFunction
-): Promise<void> => {
+export const updateSalesPartnerStatus = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
         const { id } = req.params;
         const { approvalStatus, statusNotes, tempPassword } = req.body;
@@ -1106,11 +1113,7 @@ export const updateSalesPartnerStatus = async (
 /**
  * Admin resets or issues a new password for a Sales Partner
  */
-export const resetSalesPartnerPassword = async (
-    req: AuthRequest,
-    res: Response,
-    next: NextFunction
-): Promise<void> => {
+export const resetSalesPartnerPassword = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
         const { id } = req.params;
         const { newPassword } = req.body;

@@ -109,6 +109,8 @@ export const updateSalesPartnerSchema = z.object({
     fullName: z.string().trim().min(2).optional(),
     mobileNumber: z.string().trim().regex(/^[6-9]\d{9}$/).optional(),
     email: z.string().trim().email().optional(),
+    password: z.string().trim().min(6).optional(),
+    referenceCode: z.string().trim().min(2).optional(),
     flatNumber: z.string().trim().optional(),
     buildingName: z.string().trim().optional(),
     roadName: z.string().trim().optional(),
