@@ -5,6 +5,7 @@ import { Types } from 'mongoose';
 import RegistrationPayment, { PaymentStatus, PaymentGateway } from '../models/payment.js';
 import ServiceProvider from '../models/service.provider.js';
 import RegistrationFee from '../models/registrationFee.js';
+import Coupon from '../models/coupon.js';
 import { AuthRequest } from '../middleware/auth.js';
 import { creditSalesPersonCommission } from './serviceProvider.controller.js';
 
@@ -24,7 +25,7 @@ const getRazorpayInstance = (): Razorpay => {
  */
 export const createRegistrationOrder = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-        const { providerId, planId, amount } = req.body;
+        const { providerId, planId, amount, couponCode } = req.body;
 
         // Verify provider exists
         const provider = await ServiceProvider.findById(providerId);
@@ -59,7 +60,49 @@ export const createRegistrationOrder = async (req: Request, res: Response, next:
         const roleCount = provider.jobRoles?.length || 1;
         const extraRoleFee = Math.max(0, roleCount - 1) * 50;
         const calculatedTotal = baseAmount + extraRoleFee;
-        const feeAmount = amount ? Number(amount) : calculatedTotal;
+
+        // Process coupon code if provided and partner was NOT referred by a sales partner reference code
+        const hasReferenceCode = Boolean(provider.referenceCode && provider.referenceCode.trim());
+        let appliedCoupon = null;
+        let discountAmount = 0;
+        if (couponCode && typeof couponCode === 'string' && couponCode.trim() && !hasReferenceCode) {
+            const normalizedCode = couponCode.trim().toUpperCase();
+            const coupon = await Coupon.findOne({ code: normalizedCode });
+            if (coupon && coupon.isActive) {
+                const now = new Date();
+                const isValidDate = (!coupon.validFrom || now >= new Date(coupon.validFrom)) &&
+                                    (!coupon.validTill || now <= new Date(coupon.validTill));
+                const isUnderLimit = !coupon.maxUses || coupon.maxUses === 0 || coupon.usedCount < coupon.maxUses;
+
+                let isPlanApplicable = true;
+                if (coupon.applicablePlans && coupon.applicablePlans.length > 0) {
+                    const planIdStr = targetPlan?._id ? targetPlan._id.toString() : '';
+                    isPlanApplicable = coupon.applicablePlans.some(
+                        (p) => p.toString() === planIdStr
+                    );
+                }
+
+                if (isValidDate && isUnderLimit && isPlanApplicable) {
+                    if (coupon.discountType === 'PERCENTAGE') {
+                        discountAmount = Math.round((calculatedTotal * coupon.discountAmount) / 100);
+                        if (coupon.maxDiscountAmount && discountAmount > coupon.maxDiscountAmount) {
+                            discountAmount = coupon.maxDiscountAmount;
+                        }
+                    } else {
+                        discountAmount = coupon.discountAmount;
+                    }
+                    discountAmount = Math.min(discountAmount, calculatedTotal);
+                    appliedCoupon = coupon;
+
+                    // Increment used count
+                    coupon.usedCount = (coupon.usedCount || 0) + 1;
+                    await coupon.save();
+                }
+            }
+        }
+
+        const finalTotal = Math.max(1, calculatedTotal - discountAmount);
+        const feeAmount = amount ? Number(amount) : finalTotal;
 
         const razorpay = getRazorpayInstance();
 
@@ -76,6 +119,8 @@ export const createRegistrationOrder = async (req: Request, res: Response, next:
                 baseAmount: String(baseAmount),
                 extraRoleFee: String(extraRoleFee),
                 roleCount: String(roleCount),
+                discountAmount: String(discountAmount),
+                couponCode: appliedCoupon ? appliedCoupon.code : '',
                 type: 'PROVIDER_REGISTRATION',
             },
         };
@@ -98,6 +143,9 @@ export const createRegistrationOrder = async (req: Request, res: Response, next:
                 baseAmount,
                 extraRoleFee,
                 roleCount,
+                discountAmount,
+                couponCode: appliedCoupon ? appliedCoupon.code : undefined,
+                couponId: appliedCoupon ? appliedCoupon._id : undefined,
             },
         });
 
@@ -120,6 +168,14 @@ export const createRegistrationOrder = async (req: Request, res: Response, next:
                 baseAmount,
                 extraRoleFee,
                 roleCount,
+                discountAmount,
+                coupon: appliedCoupon
+                    ? {
+                          code: appliedCoupon.code,
+                          discountAmount,
+                          discountType: appliedCoupon.discountType,
+                      }
+                    : null,
                 plan: targetPlan,
             },
         });
