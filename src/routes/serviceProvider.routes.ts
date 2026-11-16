@@ -10,8 +10,13 @@ import {
     updateProviderPaymentStatus,
     deleteProvider,
     getProviderStats,
+    sendPartnerOtp,
+    verifyPartnerOtp,
+    getPartnerProfile,
+    updatePartnerProfile,
 } from '../controllers/serviceProvider.controller.js';
 import { authenticate } from '../middleware/auth.js';
+import { authenticateProvider } from '../middleware/providerAuth.js';
 import {
     validate,
     validateBody,
@@ -43,6 +48,12 @@ router.get(
     validateParams(providerIdParamSchema),
     getProviderPublicStatus
 );
+
+// Partner Authentication & Self-Profile management routes
+router.post('/send-otp', sendPartnerOtp);
+router.post('/verify-otp', verifyPartnerOtp);
+router.get('/me', authenticateProvider, getPartnerProfile);
+router.put('/me', authenticateProvider, updatePartnerProfile);
 
 // Protected routes (requires authentication)
 router.use(authenticate);

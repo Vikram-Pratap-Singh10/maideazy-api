@@ -1,11 +1,15 @@
 import { Request, Response, NextFunction } from 'express';
 import { Types } from 'mongoose';
 import Razorpay from 'razorpay';
+import jwt from 'jsonwebtoken';
 import ServiceProvider, { ProviderApprovalStatus, PaymentStatus, } from '../models/service.provider.js';
 import User, { UserType } from '../models/user.js';
 import RegistrationPayment, { PaymentGateway } from '../models/payment.js';
 import RegistrationFee from '../models/registrationFee.js';
 import { AuthRequest } from '../middleware/auth.js';
+import { ProviderAuthRequest } from '../middleware/providerAuth.js';
+import { sendOtp } from '../services/fast2sms.js';
+import OtpModel from '../models/Otp.js';
 
 /**
  * Register a new Service Provider
@@ -1078,5 +1082,284 @@ export const creditSalesPersonCommission = async (
     } catch (err) {
         console.error('Error crediting sales person commission:', err);
         return { success: false };
+    }
+};
+
+/**
+ * Partner Auth: Send OTP to partner mobile using Fast2SMS DLT service
+ */
+export const sendPartnerOtp = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+        const { mobileNumber } = req.body;
+        const cleanMobile = String(mobileNumber || '').trim().replace(/\D/g, '').slice(-10);
+
+        if (!cleanMobile || !/^[6-9]\d{9}$/.test(cleanMobile)) {
+            res.status(400).json({
+                success: false,
+                message: 'Please enter a valid 10-digit mobile number',
+            });
+            return;
+        }
+
+        const provider = await ServiceProvider.findOne({ mobileNumber: cleanMobile });
+        if (!provider) {
+            res.status(404).json({
+                success: false,
+                message: `No partner registered with mobile number ${cleanMobile}. Please register as a partner first.`,
+            });
+            return;
+        }
+
+        if (provider.isActive === false) {
+            res.status(403).json({
+                success: false,
+                message: 'Your partner account has been deactivated. Please contact support.',
+            });
+            return;
+        }
+
+        // Send OTP via Fast2SMS service and store in DB
+        const smsResult = await sendOtp(cleanMobile);
+        if (!smsResult.success) {
+            res.status(500).json({
+                success: false,
+                message: smsResult.message || 'Failed to send OTP. Please try again.',
+            });
+            return;
+        }
+
+        res.status(200).json({
+            success: true,
+            message: `OTP sent successfully to ${cleanMobile}`,
+            data: {
+                mobileNumber: cleanMobile,
+            },
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * Partner Auth: Verify OTP and login
+ * Strictly verifies against OtpModel in database
+ */
+export const verifyPartnerOtp = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+        const { mobileNumber, otp } = req.body;
+        const cleanMobile = String(mobileNumber || '').trim().replace(/\D/g, '').slice(-10);
+        const cleanOtp = String(otp || '').trim();
+
+        if (!cleanMobile || !/^[6-9]\d{9}$/.test(cleanMobile)) {
+            res.status(400).json({
+                success: false,
+                message: 'Please enter a valid 10-digit mobile number',
+            });
+            return;
+        }
+
+        if (!cleanOtp) {
+            res.status(400).json({
+                success: false,
+                message: 'Please enter the 4-digit OTP',
+            });
+            return;
+        }
+
+        // Look up OTP record in database
+        const otpRecord = await OtpModel.findOne({ phoneNumber: cleanMobile });
+        const now = new Date();
+
+        if (!otpRecord) {
+            res.status(400).json({
+                success: false,
+                message: 'No OTP request found for this mobile number or it has expired. Please request a new OTP.',
+            });
+            return;
+        }
+
+        if (now > new Date(otpRecord.expiry)) {
+            await OtpModel.deleteMany({ phoneNumber: cleanMobile });
+            res.status(400).json({
+                success: false,
+                message: 'OTP has expired. Please request a new OTP.',
+            });
+            return;
+        }
+
+        if (otpRecord.otp !== cleanOtp) {
+            res.status(400).json({
+                success: false,
+                message: 'Invalid OTP. Please enter the correct verification code received on your phone.',
+            });
+            return;
+        }
+
+        // Delete used OTP so it cannot be replayed
+        await OtpModel.deleteMany({ phoneNumber: cleanMobile });
+
+        const provider = await ServiceProvider.findOne({ mobileNumber: cleanMobile })
+            .populate('registrationFee')
+            .populate('salesPerson', 'fullName email mobile referenceCode');
+
+        if (!provider) {
+            res.status(404).json({
+                success: false,
+                message: `No partner registered with mobile number ${cleanMobile}.`,
+            });
+            return;
+        }
+
+        if (provider.isActive === false) {
+            res.status(403).json({
+                success: false,
+                message: 'Your partner account has been deactivated. Please contact support.',
+            });
+            return;
+        }
+
+        // Fetch latest payment record
+        const latestPayment = await RegistrationPayment.findOne({ providerId: provider._id })
+            .sort({ createdAt: -1 });
+
+        const secret = process.env.JWT_SECRET || 'your_super_secret_jwt_key_here';
+        const token = jwt.sign(
+            {
+                id: provider._id.toString(),
+                mobileNumber: provider.mobileNumber,
+                role: 'SERVICE_PROVIDER',
+                type: 'SERVICE_PROVIDER',
+            },
+            secret,
+            { expiresIn: '30d' }
+        );
+
+        res.status(200).json({
+            success: true,
+            message: 'Partner login successful',
+            data: {
+                token,
+                provider,
+                latestPayment,
+            },
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * Partner: Get own profile details, purchased plan, and payment status
+ */
+export const getPartnerProfile = async (req: ProviderAuthRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+        const providerId = req.providerId || req.provider?._id;
+        const provider = await ServiceProvider.findById(providerId)
+            .populate('registrationFee')
+            .populate('salesPerson', 'fullName email mobile referenceCode');
+
+        if (!provider) {
+            res.status(404).json({
+                success: false,
+                message: 'Partner profile not found',
+            });
+            return;
+        }
+
+        const payments = await RegistrationPayment.find({ providerId })
+            .sort({ createdAt: -1 });
+
+        res.status(200).json({
+            success: true,
+            data: {
+                provider,
+                payments,
+                latestPayment: payments.length > 0 ? payments[0] : null,
+            },
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * Partner: Update own profile details
+ */
+export const updatePartnerProfile = async (req: ProviderAuthRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+        const providerId = req.providerId || req.provider?._id;
+        const provider = await ServiceProvider.findById(providerId);
+
+        if (!provider) {
+            res.status(404).json({
+                success: false,
+                message: 'Partner profile not found',
+            });
+            return;
+        }
+
+        const {
+            fullName,
+            dateOfBirth,
+            gender,
+            residentialAddress,
+            permanentAddress,
+            currentAddress,
+            isCurrentSameAsPermanent,
+            city,
+            pinCode,
+            jobRoles,
+            preferredLocations,
+            workTypes,
+            expectedSalary,
+            education,
+            experience,
+            profilePhoto,
+            aadhaarNumber,
+            aadhaarDocument,
+            panCardNumber,
+            panCardDocument,
+        } = req.body;
+
+        if (fullName) provider.fullName = fullName.trim();
+        if (dateOfBirth) provider.dateOfBirth = new Date(dateOfBirth);
+        if (gender) provider.gender = gender;
+        if (residentialAddress) provider.residentialAddress = residentialAddress.trim();
+        if (permanentAddress !== undefined) provider.permanentAddress = permanentAddress?.trim();
+        if (currentAddress !== undefined) provider.currentAddress = currentAddress?.trim();
+        if (isCurrentSameAsPermanent !== undefined) provider.isCurrentSameAsPermanent = Boolean(isCurrentSameAsPermanent);
+        if (city) provider.city = city.trim();
+        if (pinCode) provider.pinCode = pinCode.trim();
+        if (Array.isArray(jobRoles) && jobRoles.length > 0) provider.jobRoles = jobRoles;
+        if (Array.isArray(preferredLocations) && preferredLocations.length > 0) provider.preferredLocations = preferredLocations;
+        if (Array.isArray(workTypes) && workTypes.length > 0) provider.workTypes = workTypes;
+        if (expectedSalary !== undefined) provider.expectedSalary = Number(expectedSalary);
+        if (education !== undefined) provider.education = education?.trim();
+        if (experience !== undefined) provider.experience = experience?.trim();
+        if (profilePhoto !== undefined) provider.profilePhoto = profilePhoto?.trim();
+        if (aadhaarNumber !== undefined) provider.aadhaarNumber = aadhaarNumber?.trim();
+        if (aadhaarDocument !== undefined) provider.aadhaarDocument = aadhaarDocument?.trim();
+        if (panCardNumber !== undefined) provider.panCardNumber = panCardNumber?.trim().toUpperCase();
+        if (panCardDocument !== undefined) provider.panCardDocument = panCardDocument?.trim();
+
+        await provider.save();
+
+        const updated = await ServiceProvider.findById(provider._id)
+            .populate('registrationFee')
+            .populate('salesPerson', 'fullName email mobile referenceCode');
+
+        const latestPayment = await RegistrationPayment.findOne({ providerId: provider._id })
+            .sort({ createdAt: -1 });
+
+        res.status(200).json({
+            success: true,
+            message: 'Partner profile updated successfully',
+            data: {
+                provider: updated,
+                latestPayment,
+            },
+        });
+    } catch (error) {
+        next(error);
     }
 };
