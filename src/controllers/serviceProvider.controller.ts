@@ -39,6 +39,8 @@ export const registerProvider = async (req: Request, res: Response, next: NextFu
             aadhaarNumber,
             aadhaarCardNumber,
             aadhaarDocument,
+            aadhaarFrontDocument,
+            aadhaarBackDocument,
             panCardNumber,
             panNumber,
             panCardDocument,
@@ -52,7 +54,9 @@ export const registerProvider = async (req: Request, res: Response, next: NextFu
         } = req.body;
 
         const resolvedAadhaarNumber = (aadhaarNumber || aadhaarCardNumber)?.trim();
-        const resolvedAadhaarDocument = aadhaarDocument?.trim();
+        const resolvedAadhaarFrontDocument = (aadhaarFrontDocument || aadhaarDocument)?.trim();
+        const resolvedAadhaarBackDocument = aadhaarBackDocument?.trim();
+        const resolvedAadhaarDocument = (aadhaarDocument || aadhaarFrontDocument)?.trim();
         const resolvedPanCardNumber = (panCardNumber || panNumber)?.trim().toUpperCase();
         const resolvedPanCardDocument = (panCardDocument || panCardImage)?.trim();
 
@@ -102,7 +106,13 @@ export const registerProvider = async (req: Request, res: Response, next: NextFu
             if (aadhaarNumber !== undefined || aadhaarCardNumber !== undefined) {
                 existing.aadhaarNumber = aadhaarNumber || aadhaarCardNumber;
             }
-            if (aadhaarDocument !== undefined) existing.aadhaarDocument = aadhaarDocument;
+            if (aadhaarFrontDocument !== undefined) existing.aadhaarFrontDocument = aadhaarFrontDocument;
+            if (aadhaarBackDocument !== undefined) existing.aadhaarBackDocument = aadhaarBackDocument;
+            if (aadhaarDocument !== undefined) {
+                existing.aadhaarDocument = aadhaarDocument;
+            } else if (aadhaarFrontDocument !== undefined) {
+                existing.aadhaarDocument = aadhaarFrontDocument;
+            }
             if (panCardNumber !== undefined || panNumber !== undefined) {
                 existing.panCardNumber = panCardNumber || panNumber;
             }
@@ -288,6 +298,8 @@ export const registerProvider = async (req: Request, res: Response, next: NextFu
             profilePhoto,
             aadhaarNumber: resolvedAadhaarNumber,
             aadhaarDocument: resolvedAadhaarDocument,
+            aadhaarFrontDocument: resolvedAadhaarFrontDocument,
+            aadhaarBackDocument: resolvedAadhaarBackDocument,
             panCardNumber: resolvedPanCardNumber,
             panCardDocument: resolvedPanCardDocument,
             agreeAccuracy,
@@ -640,6 +652,11 @@ export const updateProvider = async (req: AuthRequest, res: Response, next: Next
         }
         if (updateData.aadhaarNumber) {
             updateData.aadhaarNumber = updateData.aadhaarNumber.trim();
+        }
+        if (updateData.aadhaarFrontDocument && !updateData.aadhaarDocument) {
+            updateData.aadhaarDocument = updateData.aadhaarFrontDocument;
+        } else if (updateData.aadhaarDocument && !updateData.aadhaarFrontDocument) {
+            updateData.aadhaarFrontDocument = updateData.aadhaarDocument;
         }
 
         if (!id || !Types.ObjectId.isValid(id)) {
@@ -995,6 +1012,8 @@ export const createProviderByAdmin = async (req: AuthRequest, res: Response, nex
             aadhaarNumber,
             aadhaarCardNumber,
             aadhaarDocument,
+            aadhaarFrontDocument,
+            aadhaarBackDocument,
             panCardNumber,
             panNumber,
             panCardDocument,
@@ -1017,7 +1036,9 @@ export const createProviderByAdmin = async (req: AuthRequest, res: Response, nex
         } = req.body;
 
         const resolvedAadhaarNumber = (aadhaarNumber || aadhaarCardNumber)?.trim();
-        const resolvedAadhaarDocument = aadhaarDocument?.trim();
+        const resolvedAadhaarFrontDocument = (aadhaarFrontDocument || aadhaarDocument)?.trim();
+        const resolvedAadhaarBackDocument = aadhaarBackDocument?.trim();
+        const resolvedAadhaarDocument = (aadhaarDocument || aadhaarFrontDocument)?.trim();
         const resolvedPanCardNumber = (panCardNumber || panNumber)?.trim().toUpperCase();
         const resolvedPanCardDocument = (panCardDocument || panCardImage)?.trim();
 
@@ -1072,6 +1093,8 @@ export const createProviderByAdmin = async (req: AuthRequest, res: Response, nex
             profilePhoto,
             aadhaarNumber: resolvedAadhaarNumber,
             aadhaarDocument: resolvedAadhaarDocument,
+            aadhaarFrontDocument: resolvedAadhaarFrontDocument,
+            aadhaarBackDocument: resolvedAadhaarBackDocument,
             panCardNumber: resolvedPanCardNumber,
             panCardDocument: resolvedPanCardDocument,
             emergencyContactName,
@@ -1427,6 +1450,8 @@ export const updatePartnerProfile = async (req: ProviderAuthRequest, res: Respon
             profilePhoto,
             aadhaarNumber,
             aadhaarDocument,
+            aadhaarFrontDocument,
+            aadhaarBackDocument,
             panCardNumber,
             panCardDocument,
         } = req.body;
@@ -1448,7 +1473,13 @@ export const updatePartnerProfile = async (req: ProviderAuthRequest, res: Respon
         if (experience !== undefined) provider.experience = experience?.trim();
         if (profilePhoto !== undefined) provider.profilePhoto = profilePhoto?.trim();
         if (aadhaarNumber !== undefined) provider.aadhaarNumber = aadhaarNumber?.trim();
-        if (aadhaarDocument !== undefined) provider.aadhaarDocument = aadhaarDocument?.trim();
+        if (aadhaarFrontDocument !== undefined) provider.aadhaarFrontDocument = aadhaarFrontDocument?.trim();
+        if (aadhaarBackDocument !== undefined) provider.aadhaarBackDocument = aadhaarBackDocument?.trim();
+        if (aadhaarDocument !== undefined) {
+            provider.aadhaarDocument = aadhaarDocument?.trim();
+        } else if (aadhaarFrontDocument !== undefined) {
+            provider.aadhaarDocument = aadhaarFrontDocument?.trim();
+        }
         if (panCardNumber !== undefined) provider.panCardNumber = panCardNumber?.trim().toUpperCase();
         if (panCardDocument !== undefined) provider.panCardDocument = panCardDocument?.trim();
 

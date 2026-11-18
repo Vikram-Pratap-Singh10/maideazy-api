@@ -68,6 +68,8 @@ export interface IProvider extends Document {
     profilePhoto?: string;
     aadhaarNumber?: string;
     aadhaarDocument?: string;
+    aadhaarFrontDocument?: string;
+    aadhaarBackDocument?: string;
     panCardNumber?: string;
     panCardDocument?: string;
     emergencyContactName?: string;
@@ -218,6 +220,14 @@ const ProviderSchema = new Schema<IProvider>({
         trim: true,
     },
     aadhaarDocument: {
+        type: String,
+        trim: true,
+    },
+    aadhaarFrontDocument: {
+        type: String,
+        trim: true,
+    },
+    aadhaarBackDocument: {
         type: String,
         trim: true,
     },
