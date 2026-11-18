@@ -1,8 +1,8 @@
 import { z } from 'zod';
 
 export const createRegistrationFeeSchema = z.object({
-    title: z.string().trim().min(2, 'Title must be at least 2 characters').default('Regular Plan').optional(),
-    planType: z.string().trim().default('REGULAR').optional(),
+    title: z.string().trim().min(2, 'Title must be at least 2 characters').default('Free Plan').optional(),
+    planType: z.string().trim().default('FREE').optional(),
     amount: z.number().nonnegative('Amount must be non-negative'),
     originalAmount: z.number().nonnegative('Original amount cannot be negative').optional(),
     currency: z.string().trim().default('INR').optional(),

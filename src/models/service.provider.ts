@@ -8,11 +8,13 @@ export enum Gender {
 }
 
 export enum JobRole {
-    MAID_HOUSEKEEPING = 'Maid / Housekeeping',
-    COOKING_ASSISTANT = 'Cooking Assistant',
-    NANNY_BABY_CARE = 'Nanny / Baby Care',
-    ELDERLY_CARE_ASSISTANT = 'Elderly Care Assistant',
-    MULTI_SKILLED_HOME_ASSISTANT = 'Multi-skilled Home Assistant',
+    MAID = 'Maid',
+    COOK = 'Cook',
+    NANNY = 'Nanny',
+    BABYSITTER = 'Babysitter',
+    NEWBORN_CARE_ASSISTANT = 'Newborn Care Assistant',
+    ELDER_CARE_ASSISTANT = 'Elder Care Assistant',
+    PATIENT_CARE_ATTENDANT = 'Patient Care Attendant (Non-Medical)',
     OTHER = 'Other',
 }
 

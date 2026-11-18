@@ -128,14 +128,55 @@ export const registerProvider = async (req: Request, res: Response, next: NextFu
                 targetFeePlan = await RegistrationFee.findOne({ isActive: true }).sort({ isDefault: -1, updatedAt: -1 });
             }
 
-            const extraRoleFee = Math.max(0, (existing.jobRoles?.length || 1) - 1) * 50;
-            const baseAmount = Number(targetFeePlan?.amount || process.env.PROVIDER_REGISTRATION_FEE || 499);
-            const feeAmount = baseAmount + extraRoleFee;
+            const isFreePlan = (targetFeePlan?.amount === 0) || (targetFeePlan?.planType === 'FREE');
+            const extraRoleFee = 0;
+            const baseAmount = isFreePlan ? 0 : Number(targetFeePlan?.amount || 0);
+            const feeAmount = isFreePlan ? 0 : baseAmount;
 
             if (targetFeePlan) {
                 existing.registrationFee = targetFeePlan._id;
             }
             existing.extraRoleCharge = extraRoleFee;
+
+            if (isFreePlan) {
+                existing.paymentStatus = PaymentStatus.SUCCESS;
+                await existing.save();
+
+                await RegistrationPayment.create({
+                    providerId: existing._id,
+                    amount: 0,
+                    currency: 'INR',
+                    status: PaymentStatus.SUCCESS,
+                    gateway: PaymentGateway.FREE,
+                    orderId: `free_${existing._id}_${Date.now()}`.slice(0, 40),
+                    paymentId: `free_${existing._id}_${Date.now()}`.slice(0, 40),
+                    paidAt: new Date(),
+                    metadata: {
+                        planId: targetFeePlan?._id,
+                        planTitle: targetFeePlan?.title || 'Free Plan',
+                        amount: 0,
+                        isFreePlan: true,
+                    },
+                });
+
+                res.status(200).json({
+                    success: true,
+                    message: 'Service provider registration retrieved and activated under Free Plan. Zero payment required.',
+                    data: {
+                        provider: existing,
+                        paymentOrder: null,
+                        razorpayKeyId: process.env.RAZORPAY_KEY_ID,
+                        registrationFee: 0,
+                        baseFee: 0,
+                        extraRoleFee: 0,
+                        plan: targetFeePlan,
+                        isExistingPending: false,
+                        isFreePlan: true,
+                    },
+                });
+                return;
+            }
+
             await existing.save();
 
             let paymentOrder: any = null;
@@ -270,15 +311,57 @@ export const registerProvider = async (req: Request, res: Response, next: NextFu
             targetFeePlan = await RegistrationFee.findOne({ isActive: true }).sort({ isDefault: -1, updatedAt: -1 });
         }
 
-        const extraRoleFee = Math.max(0, (jobRoles?.length || 1) - 1) * 50;
-        const baseAmount = Number(targetFeePlan?.amount || process.env.PROVIDER_REGISTRATION_FEE || 499);
-        const feeAmount = baseAmount + extraRoleFee;
+        const isFreePlan = (targetFeePlan?.amount === 0) || (targetFeePlan?.planType === 'FREE');
+        const extraRoleFee = 0;
+        const baseAmount = isFreePlan ? 0 : Number(targetFeePlan?.amount || 0);
+        const feeAmount = isFreePlan ? 0 : baseAmount;
 
         // Attach plan and extra role fee to provider
         if (targetFeePlan) {
             provider.registrationFee = targetFeePlan._id;
         }
         provider.extraRoleCharge = extraRoleFee;
+
+        let paymentOrder: any = null;
+
+        if (isFreePlan) {
+            provider.paymentStatus = PaymentStatus.SUCCESS;
+            await provider.save();
+
+            await RegistrationPayment.create({
+                providerId: provider._id,
+                amount: 0,
+                currency: 'INR',
+                status: PaymentStatus.SUCCESS,
+                gateway: PaymentGateway.FREE,
+                orderId: `free_${provider._id}_${Date.now()}`.slice(0, 40),
+                paymentId: `free_${provider._id}_${Date.now()}`.slice(0, 40),
+                paidAt: new Date(),
+                metadata: {
+                    planId: targetFeePlan?._id,
+                    planTitle: targetFeePlan?.title || 'Free Plan',
+                    amount: 0,
+                    isFreePlan: true,
+                },
+            });
+
+            res.status(201).json({
+                success: true,
+                message: 'Service provider registered successfully under Free Plan. Zero payment required.',
+                data: {
+                    provider,
+                    paymentOrder: null,
+                    razorpayKeyId: process.env.RAZORPAY_KEY_ID,
+                    registrationFee: 0,
+                    baseFee: 0,
+                    extraRoleFee: 0,
+                    plan: targetFeePlan,
+                    isFreePlan: true,
+                },
+            });
+            return;
+        }
+
         await provider.save();
 
         // Note: Sales person commission is credited to wallet ONLY AFTER provider registration payment succeeds
@@ -287,8 +370,6 @@ export const registerProvider = async (req: Request, res: Response, next: NextFu
         }
 
         // Automatically create Razorpay order for registration fee if keys configured
-        let paymentOrder: any = null;
-
         if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_SECRET) {
             try {
                 const razorpay = new Razorpay({
@@ -423,14 +504,44 @@ export const getAllProviders = async (req: AuthRequest, res: Response, next: Nex
                 .sort({ createdAt: -1 })
                 .skip(skip)
                 .limit(limitNum)
-                .populate('salesPerson', 'fullName email mobileNumber referenceCode'),
+                .populate('salesPerson', 'fullName email mobileNumber referenceCode')
+                .populate('registrationFee', 'title planType amount currency validityInDays'),
             ServiceProvider.countDocuments(filter),
         ]);
+
+        const providerIds = providers.map((p) => p._id);
+        const payments = await RegistrationPayment.find({ providerId: { $in: providerIds } })
+            .sort({ createdAt: -1 });
+
+        const latestPaymentMap = new Map();
+        payments.forEach((pay) => {
+            if (!latestPaymentMap.has(pay.providerId.toString())) {
+                latestPaymentMap.set(pay.providerId.toString(), pay);
+            }
+        });
+
+        const providersWithPayment = providers.map((p) => {
+            const pObj = p.toObject();
+            const pay = latestPaymentMap.get(p._id.toString());
+            const fee: any = p.registrationFee;
+            const isPremium = fee && (fee.planType === 'PREMIUM' || /premium/i.test(fee.title));
+            const planTitle = fee?.title || (isPremium ? 'Premium Plan' : 'Free Plan');
+            const planType = fee?.planType || (isPremium ? 'PREMIUM' : 'FREE');
+            const paymentAmount = pay?.amount !== undefined ? pay.amount : (fee?.amount !== undefined ? fee.amount : 0);
+
+            return {
+                ...pObj,
+                planTitle,
+                planType,
+                paymentAmount,
+                latestPayment: pay || null,
+            };
+        });
 
         res.status(200).json({
             success: true,
             data: {
-                providers,
+                providers: providersWithPayment,
                 pagination: {
                     total,
                     page: pageNum,
@@ -459,10 +570,9 @@ export const getProviderById = async (req: AuthRequest, res: Response, next: Nex
             return;
         }
 
-        const provider = await ServiceProvider.findById(id).populate(
-            'salesPerson',
-            'fullName email mobileNumber referenceCode'
-        );
+        const provider = await ServiceProvider.findById(id)
+            .populate('salesPerson', 'fullName email mobileNumber referenceCode')
+            .populate('registrationFee', 'title planType amount currency validityInDays features');
 
         if (!provider) {
             res.status(404).json({
@@ -1357,6 +1467,202 @@ export const updatePartnerProfile = async (req: ProviderAuthRequest, res: Respon
             data: {
                 provider: updated,
                 latestPayment,
+            },
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * Admin: Directly upgrade a Service Provider's Free Plan to Premium Plan
+ */
+export const adminUpgradeToPremium = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+        const { id } = req.params;
+
+        if (!id || !Types.ObjectId.isValid(id)) {
+            res.status(400).json({
+                success: false,
+                message: 'Invalid Provider ID format',
+            });
+            return;
+        }
+
+        const provider = await ServiceProvider.findById(id);
+        if (!provider) {
+            res.status(404).json({
+                success: false,
+                message: 'Service provider not found',
+            });
+            return;
+        }
+
+        // Find active Premium plan
+        let premiumPlan = await RegistrationFee.findOne({
+            isActive: true,
+            $or: [{ planType: 'PREMIUM' }, { title: /premium/i }],
+        });
+
+        if (!premiumPlan) {
+            premiumPlan = await RegistrationFee.create({
+                title: 'Premium Plan',
+                planType: 'PREMIUM',
+                amount: 999,
+                originalAmount: 1999,
+                currency: 'INR',
+                salesPersonCommission: 100,
+                features: [
+                    'Top Priority Placement & Gold Verified Badge',
+                    'Instant High-Value Job Leads First',
+                    'Dedicated Placement Manager Support',
+                    'Free Profile Background Verification Certificate',
+                    'Priority 24/7 Helpline Access',
+                ],
+                description: 'Featured placement with top job opportunities and personal relationship manager',
+                validityInDays: 365,
+                isActive: true,
+                isDefault: false,
+                createdBy: req.user?._id,
+            });
+        }
+
+        // Update provider to Premium Plan
+        provider.registrationFee = premiumPlan._id;
+        provider.paymentStatus = PaymentStatus.SUCCESS;
+        await provider.save();
+
+        // Record the upgrade payment
+        const paymentRecord = await RegistrationPayment.create({
+            providerId: provider._id,
+            amount: premiumPlan.amount,
+            currency: 'INR',
+            status: PaymentStatus.SUCCESS,
+            gateway: PaymentGateway.MANUAL,
+            orderId: `admin_upgrade_${provider._id}_${Date.now()}`.slice(0, 40),
+            paymentId: `admin_upgrade_${provider._id}_${Date.now()}`.slice(0, 40),
+            paidAt: new Date(),
+            metadata: {
+                upgradedBy: req.user?._id,
+                upgradedByName: req.user?.fullName,
+                upgradedByEmail: req.user?.email,
+                upgradedByRole: req.user?.userType,
+                planId: premiumPlan._id,
+                planTitle: premiumPlan.title,
+                amount: premiumPlan.amount,
+                note: 'Upgraded to Premium Plan directly by Admin',
+            },
+        });
+
+        // Credit sales commission if provider has a sales person
+        if (provider.salesPerson) {
+            await creditSalesPersonCommission(provider._id);
+        }
+
+        const updatedProvider = await ServiceProvider.findById(provider._id)
+            .populate('registrationFee')
+            .populate('salesPerson', 'fullName email mobileNumber referenceCode');
+
+        res.status(200).json({
+            success: true,
+            message: `Successfully upgraded ${provider.fullName} to Premium Plan!`,
+            data: {
+                provider: updatedProvider,
+                payment: paymentRecord,
+                plan: premiumPlan,
+            },
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * Complete Free Plan registration for a candidate (₹0)
+ */
+export const completeFreePlanRegistration = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+        const { id } = req.params;
+        const { planId } = req.body;
+
+        if (!id || !Types.ObjectId.isValid(id)) {
+            res.status(400).json({
+                success: false,
+                message: 'Invalid Provider ID format',
+            });
+            return;
+        }
+
+        const provider = await ServiceProvider.findById(id);
+        if (!provider) {
+            res.status(404).json({
+                success: false,
+                message: 'Service provider not found',
+            });
+            return;
+        }
+
+        let targetPlan = null;
+        if (planId && Types.ObjectId.isValid(planId)) {
+            targetPlan = await RegistrationFee.findById(planId);
+        }
+        if (!targetPlan) {
+            targetPlan = await RegistrationFee.findOne({
+                isActive: true,
+                $or: [{ planType: 'FREE' }, { amount: 0 }, { title: /free/i }],
+            });
+        }
+
+        if (targetPlan && targetPlan.amount > 0) {
+            res.status(400).json({
+                success: false,
+                message: 'Selected plan is not a Free Plan. Payment is required.',
+            });
+            return;
+        }
+
+        if (targetPlan) {
+            provider.registrationFee = targetPlan._id;
+        }
+        provider.paymentStatus = PaymentStatus.SUCCESS;
+        provider.extraRoleCharge = 0;
+        await provider.save();
+
+        // Check if payment record already exists
+        const existingPayment = await RegistrationPayment.findOne({
+            providerId: provider._id,
+            status: PaymentStatus.SUCCESS,
+        });
+
+        if (!existingPayment) {
+            await RegistrationPayment.create({
+                providerId: provider._id,
+                amount: 0,
+                currency: 'INR',
+                status: PaymentStatus.SUCCESS,
+                gateway: PaymentGateway.FREE,
+                orderId: `free_${provider._id}_${Date.now()}`.slice(0, 40),
+                paymentId: `free_${provider._id}_${Date.now()}`.slice(0, 40),
+                paidAt: new Date(),
+                metadata: {
+                    planId: targetPlan?._id,
+                    planTitle: targetPlan?.title || 'Free Plan',
+                    amount: 0,
+                    isFreePlan: true,
+                },
+            });
+        }
+
+        const updatedProvider = await ServiceProvider.findById(provider._id)
+            .populate('registrationFee')
+            .populate('salesPerson', 'fullName email mobileNumber referenceCode');
+
+        res.status(200).json({
+            success: true,
+            message: 'Free Plan activated successfully! No payment required.',
+            data: {
+                provider: updatedProvider,
+                plan: targetPlan,
             },
         });
     } catch (error) {

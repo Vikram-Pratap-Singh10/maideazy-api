@@ -24,17 +24,18 @@ const RegistrationFeeSchema = new Schema<IRegistrationFee>({
         type: String,
         required: [true, 'Title is required'],
         trim: true,
-        default: 'Regular Plan',
+        default: 'Free Plan',
     },
     planType: {
         type: String,
         trim: true,
-        default: 'REGULAR',
+        default: 'FREE',
     },
     amount: {
         type: Number,
         required: [true, 'Registration fee amount is required'],
         min: [0, 'Amount must be a non-negative number'],
+        default: 0,
     },
     originalAmount: {
         type: Number,

@@ -13,6 +13,7 @@ export enum PaymentGateway {
     PHONEPE = 'PHONEPE',
     CASHFREE = 'CASHFREE',
     MANUAL = 'MANUAL',
+    FREE = 'FREE',
 }
 
 export interface IRegistrationPayment extends Document {
@@ -43,7 +44,7 @@ const RegistrationPaymentSchema = new Schema<IRegistrationPayment>(
         amount: {
             type: Number,
             required: [true, 'Payment amount is required'],
-            min: [1, 'Amount must be greater than 0'],
+            min: [0, 'Amount must be greater than or equal to 0'],
         },
         currency: {
             type: String,

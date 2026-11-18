@@ -678,8 +678,8 @@ export const getAllSalesPartners = async (req: AuthRequest, res: Response, next:
                         referenceCode: 1,
                         salesPerson: 1,
                         paymentStatus: 1,
-                        planType: { $ifNull: ['$planInfo.planType', 'REGULAR'] },
-                        planTitle: { $ifNull: ['$planInfo.title', 'Regular Plan'] },
+                        planType: { $ifNull: ['$planInfo.planType', 'FREE'] },
+                        planTitle: { $ifNull: ['$planInfo.title', 'Free Plan'] },
                     },
                 },
             ]);
@@ -737,6 +737,7 @@ export const getAllSalesPartners = async (req: AuthRequest, res: Response, next:
                 totalOnboardings: perf.totalOnboardings,
                 completedOnboardings: perf.completedOnboardings,
                 pendingOnboardings: perf.pendingOnboardings,
+                freePlanSales: perf.regularPlanSales,
                 regularPlanSales: perf.regularPlanSales,
                 premiumPlanSales: perf.premiumPlanSales,
             };

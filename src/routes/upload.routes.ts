@@ -1,73 +1,54 @@
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
 import cloudinary from '../middleware/cloudinary.js';
 
 const router = Router();
 
-// Ensure local uploads directory exists
-const uploadDir = path.resolve('uploads');
-if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir, { recursive: true });
-}
-
-// Memory storage for multer to easily stream to Cloudinary or save locally
+// Memory storage for multer to stream directly to Cloudinary
 const storage = multer.memoryStorage();
 const upload = multer({
     storage,
-    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+    limits: { fileSize: 15 * 1024 * 1024 }, // 15MB limit
 });
 
 /**
- * Upload single file (multipart form data or base64)
+ * Upload single file directly to Cloudinary (multipart form-data or base64)
  */
 router.post('/', upload.single('file'), async (req: Request, res: Response): Promise<void> => {
     try {
         const folder = (req.body?.folder as string) || 'maideazy_docs';
 
-        // 1. Handle multipart file upload
+        // 1. Handle multipart form file upload
         if (req.file) {
             const file = req.file;
 
-            // Try Cloudinary upload first
-            try {
-                const uploadResult = await new Promise<any>((resolve, reject) => {
-                    const uploadStream = cloudinary.uploader.upload_stream(
-                        {
-                            folder,
-                            resource_type: 'auto',
-                        },
-                        (error, result) => {
-                            if (error) reject(error);
-                            else resolve(result);
-                        }
-                    );
-                    uploadStream.end(file.buffer);
-                });
+            const uploadResult = await new Promise<any>((resolve, reject) => {
+                const uploadStream = cloudinary.uploader.upload_stream(
+                    {
+                        folder,
+                        resource_type: 'auto',
+                    },
+                    (error, result) => {
+                        if (error) return reject(error);
+                        resolve(result);
+                    }
+                );
+                uploadStream.end(file.buffer);
+            });
 
-                if (uploadResult?.secure_url) {
-                    res.status(200).json({
-                        success: true,
-                        url: uploadResult.secure_url,
-                        publicId: uploadResult.public_id,
-                        format: uploadResult.format,
-                    });
-                    return;
-                }
-            } catch (cloudErr) {
-                console.warn('Cloudinary upload error, saving locally fallback:', cloudErr);
+            if (uploadResult?.secure_url || uploadResult?.url) {
+                res.status(200).json({
+                    success: true,
+                    url: uploadResult.secure_url || uploadResult.url,
+                    publicId: uploadResult.public_id,
+                    format: uploadResult.format,
+                });
+                return;
             }
 
-            // Fallback to local disk
-            const uniqueFilename = `${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(file.originalname) || '.png'}`;
-            const targetPath = path.join(uploadDir, uniqueFilename);
-            fs.writeFileSync(targetPath, file.buffer);
-
-            const fileUrl = `/uploads/${uniqueFilename}`;
-            res.status(200).json({
-                success: true,
-                url: fileUrl,
+            res.status(500).json({
+                success: false,
+                message: 'Failed to obtain secure URL from Cloudinary',
             });
             return;
         }
@@ -75,43 +56,18 @@ router.post('/', upload.single('file'), async (req: Request, res: Response): Pro
         // 2. Handle Base64 string in JSON body
         const { base64 } = req.body;
         if (base64 && typeof base64 === 'string') {
-            try {
-                const uploadResult = await cloudinary.uploader.upload(base64, {
-                    folder,
-                    resource_type: 'auto',
-                });
+            const uploadResult = await cloudinary.uploader.upload(base64, {
+                folder,
+                resource_type: 'auto',
+            });
 
-                res.status(200).json({
-                    success: true,
-                    url: uploadResult.secure_url,
-                    publicId: uploadResult.public_id,
-                });
-                return;
-            } catch (cloudErr) {
-                console.warn('Cloudinary base64 upload failed, saving locally:', cloudErr);
-                const matches = base64.match(/^data:([A-Za-z-+/]+);base64,(.+)$/);
-                let buffer: Buffer;
-                let ext = '.png';
-
-                if (matches && matches[2]) {
-                    buffer = Buffer.from(matches[2], 'base64');
-                    const mime = matches[1];
-                    if (mime?.includes('jpeg') || mime?.includes('jpg')) ext = '.jpg';
-                    else if (mime?.includes('pdf')) ext = '.pdf';
-                } else {
-                    buffer = Buffer.from(base64, 'base64');
-                }
-
-                const uniqueFilename = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
-                const targetPath = path.join(uploadDir, uniqueFilename);
-                fs.writeFileSync(targetPath, buffer);
-
-                res.status(200).json({
-                    success: true,
-                    url: `/uploads/${uniqueFilename}`,
-                });
-                return;
-            }
+            res.status(200).json({
+                success: true,
+                url: uploadResult.secure_url || uploadResult.url,
+                publicId: uploadResult.public_id,
+                format: uploadResult.format,
+            });
+            return;
         }
 
         res.status(400).json({
@@ -119,13 +75,13 @@ router.post('/', upload.single('file'), async (req: Request, res: Response): Pro
             message: 'No file or base64 data provided for upload',
         });
     } catch (error: any) {
-        console.error('File upload route error:', error);
+        console.error('Cloudinary upload error:', error);
         res.status(500).json({
             success: false,
-            message: error.message || 'File upload failed',
+            message: error?.message || 'Cloudinary upload failed',
+            error: error?.http_code ? { code: error.http_code, message: error.message } : undefined,
         });
     }
 });
 
 export default router;
-

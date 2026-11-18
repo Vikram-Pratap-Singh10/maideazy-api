@@ -9,24 +9,30 @@ import { AuthRequest } from '../middleware/auth.js';
  */
 export const getActiveRegistrationFee = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
+        // Auto-migrate any existing legacy Regular Plan to Free Plan with ₹0
+        await RegistrationFee.updateMany(
+            { $or: [{ title: 'Regular Plan' }, { planType: 'REGULAR' }] },
+            { $set: { title: 'Free Plan', planType: 'FREE', amount: 0 } }
+        );
+
         let fees = await RegistrationFee.find({ isActive: true }).sort({ isDefault: -1, amount: 1 });
 
         if (fees.length === 0) {
-            // Seed initial Regular & Premium plans if none exist in DB
-            const regular = await RegistrationFee.create({
-                title: 'Regular Plan',
-                planType: 'REGULAR',
-                amount: 499,
-                originalAmount: 999,
+            // Seed initial Free & Premium plans if none exist in DB
+            const freePlan = await RegistrationFee.create({
+                title: 'Free Plan',
+                planType: 'FREE',
+                amount: 0,
+                originalAmount: 499,
                 currency: 'INR',
-                salesPersonCommission: 50,
+                salesPersonCommission: 0,
                 features: [
                     'Verified Service Provider Profile Badge',
                     'Direct Job Alerts in Preferred Locations',
                     'Standard Customer Support Access',
                     'Profile Listing in MaidEazy Directory',
                 ],
-                description: 'Essential platform registration and verification for domestic helpers',
+                description: 'Essential platform registration and verification for domestic helpers - 100% Free of Cost',
                 validityInDays: 365,
                 isActive: true,
                 isDefault: true,
@@ -52,7 +58,7 @@ export const getActiveRegistrationFee = async (req: Request, res: Response, next
                 isDefault: false,
             });
 
-            fees = [regular, premium];
+            fees = [freePlan, premium];
         }
 
         const primaryFee = fees.find((f) => f.isDefault) || fees[0];
@@ -81,11 +87,11 @@ export const createOrUpdateActiveFee = async (
     try {
         const {
             title,
-            planType = 'REGULAR',
+            planType = 'FREE',
             amount,
             originalAmount,
             currency = 'INR',
-            salesPersonCommission = 50,
+            salesPersonCommission = 0,
             features = [],
             description,
             validityInDays = 365,
@@ -127,7 +133,7 @@ export const createOrUpdateActiveFee = async (
         }
 
         fee = await RegistrationFee.create({
-            title: title || 'Regular Plan',
+            title: title || 'Free Plan',
             planType,
             amount,
             originalAmount,
@@ -154,11 +160,11 @@ export const createOrUpdateActiveFee = async (
 
 /**
  * Admin: Create a new Registration Fee Plan
- * Multiple plans (Regular, Premium, etc.) can be created and kept active simultaneously.
+ * Multiple plans (Free, Premium, etc.) can be created and kept active simultaneously.
  */
 export const createRegistrationFee = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-        const { title, planType = 'REGULAR', amount, originalAmount, currency = 'INR', salesPersonCommission = 50, features = [], description, validityInDays = 365, isActive = true, isDefault = false, } = req.body;
+        const { title, planType = 'FREE', amount, originalAmount, currency = 'INR', salesPersonCommission = 0, features = [], description, validityInDays = 365, isActive = true, isDefault = false, } = req.body;
 
         const userId = req.user?._id;
 
@@ -168,7 +174,7 @@ export const createRegistrationFee = async (req: AuthRequest, res: Response, nex
         }
 
         const fee = await RegistrationFee.create({
-            title: title || 'Regular Plan',
+            title: title || 'Free Plan',
             planType,
             amount,
             originalAmount,
@@ -198,27 +204,33 @@ export const createRegistrationFee = async (req: AuthRequest, res: Response, nex
  */
 export const getAllRegistrationFees = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
+        // Auto-migrate any legacy Regular Plan to Free Plan with ₹0
+        await RegistrationFee.updateMany(
+            { $or: [{ title: 'Regular Plan' }, { planType: 'REGULAR' }] },
+            { $set: { title: 'Free Plan', planType: 'FREE', amount: 0 } }
+        );
+
         let fees = await RegistrationFee.find()
             .sort({ isDefault: -1, createdAt: -1 })
             .populate('createdBy', 'fullName email')
             .populate('updatedBy', 'fullName email');
 
-        // If no fees exist, seed the standard Regular and Premium plans
+        // If no fees exist, seed the standard Free and Premium plans
         if (fees.length === 0) {
-            const regular = await RegistrationFee.create({
-                title: 'Regular Plan',
-                planType: 'REGULAR',
-                amount: 499,
-                originalAmount: 999,
+            const freePlan = await RegistrationFee.create({
+                title: 'Free Plan',
+                planType: 'FREE',
+                amount: 0,
+                originalAmount: 499,
                 currency: 'INR',
-                salesPersonCommission: 50,
+                salesPersonCommission: 0,
                 features: [
                     'Verified Service Provider Profile Badge',
                     'Direct Job Alerts in Preferred Locations',
                     'Standard Customer Support Access',
                     'Profile Listing in MaidEazy Directory',
                 ],
-                description: 'Essential platform registration and verification for domestic helpers',
+                description: 'Essential platform registration and verification for domestic helpers - 100% Free of Cost',
                 validityInDays: 365,
                 isActive: true,
                 isDefault: true,
@@ -246,7 +258,7 @@ export const getAllRegistrationFees = async (req: AuthRequest, res: Response, ne
                 createdBy: req.user?._id,
             });
 
-            fees = [regular, premium];
+            fees = [freePlan, premium];
         }
 
         res.status(200).json({

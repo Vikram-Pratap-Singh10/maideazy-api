@@ -37,29 +37,51 @@ export const createRegistrationOrder = async (req: Request, res: Response, next:
             return;
         }
 
-        // Check if already paid
-        if (provider.paymentStatus === PaymentStatus.SUCCESS) {
-            res.status(400).json({
-                success: false,
-                message: 'Registration fee has already been paid for this service provider',
-                data: { provider },
-            });
-            return;
-        }
+        const isUpgrade = Boolean(req.body.isUpgrade);
 
         // Fetch selected or active default registration fee configuration
         let targetPlan = null;
         if (planId && Types.ObjectId.isValid(planId)) {
             targetPlan = await RegistrationFee.findById(planId);
         }
+        if ((!targetPlan || (isUpgrade && targetPlan.amount === 0)) && isUpgrade) {
+            targetPlan = await RegistrationFee.findOne({
+                isActive: true,
+                $or: [{ planType: 'PREMIUM' }, { title: { $regex: /premium/i } }, { amount: { $gt: 0 } }]
+            }).sort({ updatedAt: -1 });
+        }
         if (!targetPlan) {
             targetPlan = await RegistrationFee.findOne({ isActive: true }).sort({ isDefault: -1, updatedAt: -1 });
         }
 
+        // Check if already paid - allow if this is an upgrade to Premium Plan
+        if (provider.paymentStatus === PaymentStatus.SUCCESS) {
+            const currentPlan = provider.registrationFee ? await RegistrationFee.findById(provider.registrationFee) : null;
+            const isAlreadyPremium = currentPlan && (currentPlan.planType === 'PREMIUM' || /premium/i.test(currentPlan.title));
+
+            if (isAlreadyPremium) {
+                res.status(400).json({
+                    success: false,
+                    message: 'Service provider is already on the Premium Plan',
+                    data: { provider },
+                });
+                return;
+            }
+
+            if (!isUpgrade && targetPlan && targetPlan.amount === 0) {
+                res.status(400).json({
+                    success: false,
+                    message: 'Registration fee has already been completed for this service provider',
+                    data: { provider },
+                });
+                return;
+            }
+        }
+
         const baseAmount = Number(targetPlan?.amount || process.env.PROVIDER_REGISTRATION_FEE || 499);
         const roleCount = provider.jobRoles?.length || 1;
-        const extraRoleFee = Math.max(0, roleCount - 1) * 50;
-        const calculatedTotal = baseAmount + extraRoleFee;
+        const extraRoleFee = 0;
+        const calculatedTotal = baseAmount;
 
         // Process coupon code if provided and partner was NOT referred by a sales partner reference code
         const hasReferenceCode = Boolean(provider.referenceCode && provider.referenceCode.trim());
@@ -247,12 +269,20 @@ export const verifyPayment = async (req: Request, res: Response, next: NextFunct
             { new: true }
         );
 
+        if (paymentRecord?.metadata?.planId) {
+            provider.registrationFee = paymentRecord.metadata.planId;
+        }
+
         // Update provider paymentStatus to SUCCESS
         provider.paymentStatus = PaymentStatus.SUCCESS;
         await provider.save();
 
         // Credit sales person commission to wallet if registered with a reference code
         await creditSalesPersonCommission(provider._id);
+
+        const updatedProvider = await ServiceProvider.findById(provider._id)
+            .populate('registrationFee')
+            .populate('salesPerson', 'fullName email mobileNumber referenceCode');
 
         res.status(200).json({
             success: true,
@@ -261,7 +291,7 @@ export const verifyPayment = async (req: Request, res: Response, next: NextFunct
                 orderId: razorpay_order_id,
                 paymentId: razorpay_payment_id,
                 paymentStatus: provider.paymentStatus,
-                provider,
+                provider: updatedProvider || provider,
                 paymentRecord,
             },
         });

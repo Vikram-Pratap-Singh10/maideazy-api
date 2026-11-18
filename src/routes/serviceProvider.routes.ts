@@ -14,8 +14,10 @@ import {
     verifyPartnerOtp,
     getPartnerProfile,
     updatePartnerProfile,
+    adminUpgradeToPremium,
+    completeFreePlanRegistration,
 } from '../controllers/serviceProvider.controller.js';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, requireAdmin } from '../middleware/auth.js';
 import { authenticateProvider } from '../middleware/providerAuth.js';
 import {
     validate,
@@ -47,6 +49,13 @@ router.get(
     '/:id/public-status',
     validateParams(providerIdParamSchema),
     getProviderPublicStatus
+);
+
+// Candidate complete Free Plan registration (₹0)
+router.post(
+    '/:id/complete-free',
+    validateParams(providerIdParamSchema),
+    completeFreePlanRegistration
 );
 
 // Partner Authentication & Self-Profile management routes
@@ -104,6 +113,14 @@ router.patch(
     '/:id/payment-status',
     validate({ params: providerIdParamSchema, body: updateProviderPaymentStatusSchema }),
     updateProviderPaymentStatus
+);
+
+// Admin directly upgrade Free Plan provider to Premium Plan
+router.post(
+    '/:id/admin-upgrade-to-premium',
+    requireAdmin,
+    validateParams(providerIdParamSchema),
+    adminUpgradeToPremium
 );
 
 // Delete provider
