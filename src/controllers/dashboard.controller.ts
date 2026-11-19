@@ -108,9 +108,39 @@ export const getDashboardStats = async (
                 ServiceProvider.find(baseProviderFilter)
                     .sort({ createdAt: -1 })
                     .limit(10)
-                    .populate('salesPerson', 'fullName email mobileNumber referenceCode'),
+                    .populate('salesPerson', 'fullName email mobileNumber referenceCode')
+                    .populate('registrationFee', 'title planType amount currency validityInDays'),
                 User.findById(userId).select('wallet_balance referenceCode fullName email'),
             ]);
+
+            const salesProviderIds = recentProviders.map((p) => p._id);
+            const salesPayments = await RegistrationPayment.find({ providerId: { $in: salesProviderIds } })
+                .sort({ createdAt: -1 });
+
+            const salesPaymentMap = new Map();
+            salesPayments.forEach((pay) => {
+                if (!salesPaymentMap.has(pay.providerId.toString())) {
+                    salesPaymentMap.set(pay.providerId.toString(), pay);
+                }
+            });
+
+            const salesRecentProvidersWithPayment = recentProviders.map((p) => {
+                const pObj = p.toObject();
+                const pay = salesPaymentMap.get(p._id.toString());
+                const fee: any = p.registrationFee;
+                const isPremium = fee && (fee.planType === 'PREMIUM' || /premium/i.test(fee.title));
+                const planTitle = fee?.title || (isPremium ? 'Premium Plan' : 'Free Plan');
+                const planType = fee?.planType || (isPremium ? 'PREMIUM' : 'FREE');
+                const paymentAmount = pay?.amount !== undefined ? pay.amount : (fee?.amount !== undefined ? fee.amount : 0);
+
+                return {
+                    ...pObj,
+                    planTitle,
+                    planType,
+                    paymentAmount,
+                    latestPayment: pay || null,
+                };
+            });
 
             // When filtered by date, calculate period earnings if possible, otherwise wallet_balance
             const allTimeEarning = freshUser?.wallet_balance ?? 0;
@@ -135,7 +165,7 @@ export const getDashboardStats = async (
                     paidProviders,
                     referenceCode: user.referenceCode || freshUser?.referenceCode || '',
                 },
-                recentProviders,
+                recentProviders: salesRecentProvidersWithPayment,
             });
             return;
         }
@@ -172,8 +202,38 @@ export const getDashboardStats = async (
             ServiceProvider.find()
                 .sort({ createdAt: -1 })
                 .limit(10)
-                .populate('salesPerson', 'fullName email mobileNumber referenceCode'),
+                .populate('salesPerson', 'fullName email mobileNumber referenceCode')
+                .populate('registrationFee', 'title planType amount currency validityInDays'),
         ]);
+
+        const adminProviderIds = recentProviders.map((p) => p._id);
+        const adminPayments = await RegistrationPayment.find({ providerId: { $in: adminProviderIds } })
+            .sort({ createdAt: -1 });
+
+        const adminPaymentMap = new Map();
+        adminPayments.forEach((pay) => {
+            if (!adminPaymentMap.has(pay.providerId.toString())) {
+                adminPaymentMap.set(pay.providerId.toString(), pay);
+            }
+        });
+
+        const adminRecentProvidersWithPayment = recentProviders.map((p) => {
+            const pObj = p.toObject();
+            const pay = adminPaymentMap.get(p._id.toString());
+            const fee: any = p.registrationFee;
+            const isPremium = fee && (fee.planType === 'PREMIUM' || /premium/i.test(fee.title));
+            const planTitle = fee?.title || (isPremium ? 'Premium Plan' : 'Free Plan');
+            const planType = fee?.planType || (isPremium ? 'PREMIUM' : 'FREE');
+            const paymentAmount = pay?.amount !== undefined ? pay.amount : (fee?.amount !== undefined ? fee.amount : 0);
+
+            return {
+                ...pObj,
+                planTitle,
+                planType,
+                paymentAmount,
+                latestPayment: pay || null,
+            };
+        });
 
         let registerFeeRevenue = regPayments[0]?.total || 0;
         if (registerFeeRevenue === 0 && paidProvidersCount > 0) {
@@ -198,7 +258,7 @@ export const getDashboardStats = async (
                 pendingProviders,
                 paidProvidersCount,
             },
-            recentProviders,
+            recentProviders: adminRecentProvidersWithPayment,
         });
     } catch (error) {
         next(error);
